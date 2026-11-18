@@ -1,0 +1,127 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/ibm-plex-sans';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Tokens: tema claro (padrão) e escuro trocam apenas as variáveis. */
+:root {
+  --paper: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f0f2f5;
+  --line: #e3e5ea;
+  --line-strong: #cfd3db;
+  --ink: #15171c;
+  --ink-2: #3a3f4a;
+  --muted: #5b616e;
+  --faint: #8a909c;
+  --inspect: #2d5bff;
+  --inspect-soft: rgb(45 91 255 / 0.1);
+  --sev-critical: #d92d20;
+  --sev-high: #e8590c;
+  --sev-medium: #b7791f;
+  --sev-low: #64748b;
+  --ok: #15803d;
+  --series-ui: #2d5bff;
+  --series-ux: #1baf7a;
+  --shadow-pop: 0 1px 2px rgb(21 23 28 / 0.06), 0 8px 24px -8px rgb(21 23 28 / 0.14);
+  color-scheme: light;
+}
+
+.dark {
+  --paper: #0f1115;
+  --surface: #16191f;
+  --surface-2: #1c2028;
+  --line: #262b34;
+  --line-strong: #353b47;
+  --ink: #eceef2;
+  --ink-2: #c7cbd3;
+  --muted: #959bab;
+  --faint: #6c7282;
+  --inspect: #6d8bff;
+  --inspect-soft: rgb(109 139 255 / 0.14);
+  --sev-critical: #f2655b;
+  --sev-high: #f5884a;
+  --sev-medium: #e0ad4a;
+  --sev-low: #9aa6b8;
+  --ok: #4ade80;
+  --series-ui: #6d8bff;
+  --series-ux: #199e70;
+  --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: 'IBM Plex Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-inspect: var(--inspect);
+  --color-inspect-soft: var(--inspect-soft);
+  --color-critical: var(--sev-critical);
+  --color-high: var(--sev-high);
+  --color-medium: var(--sev-medium);
+  --color-low: var(--sev-low);
+  --color-ok: var(--ok);
+  --shadow-pop: var(--shadow-pop);
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: 'ss01', 'tnum' 0;
+  }
+  ::selection {
+    background: var(--inspect-soft);
+    color: var(--ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--inspect);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+}
+
+/* Algarismos tabulares para tudo que é medição. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-rise { animation: rise 0.32s var(--ease-out-soft) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
