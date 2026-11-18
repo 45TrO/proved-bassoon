@@ -48,6 +48,12 @@ function dominantRole(b: Bucket): PaletteColor['role'] {
   return best;
 }
 
+/** Croma perceptual (CIELAB). Abaixo de ~12 a cor é percebida como neutra. */
+function labChroma(rgb: RGBA): number {
+  const lab = rgbToLab(rgb);
+  return Math.hypot(lab.a, lab.b);
+}
+
 export function extractPalette(snap: Snapshot): { palette: PaletteColor[]; buckets: Bucket[] } {
   const els = visible(snap);
   const buckets: Bucket[] = [];
@@ -178,6 +184,9 @@ export function analyzeIdentity(snap: Snapshot): { report: IdentityReport; issue
   const near: { a: string; b: string; deltaE: number }[] = [];
   for (let i = 0; i < relevant.length; i++) {
     for (let j = i + 1; j < relevant.length; j++) {
+      // Neutros próximos (ex.: fundo creme e card branco) costumam ser camadas de superfície
+      // intencionais; só pares em que alguma cor tem croma relevante contam como acidentais.
+      if (labChroma(relevant[i]!.rgb) < 12 && labChroma(relevant[j]!.rgb) < 12) continue;
       const d = deltaE2000(rgbToLab(relevant[i]!.rgb), rgbToLab(relevant[j]!.rgb));
       if (d >= 2.5 && d < 6) near.push({ a: relevant[i]!.hex, b: relevant[j]!.hex, deltaE: round2(d) });
     }
@@ -199,9 +208,12 @@ export function analyzeIdentity(snap: Snapshot): { report: IdentityReport; issue
 
   // Muitas famílias de cor distintas (agrupando ΔE < 10).
   const families: RGBA[] = [];
+  const totalWeight = buckets.reduce((a, b) => a + b.weight, 0) || 1;
   for (const b of relevant) {
     const hsl = rgbToHsl(b.rgb);
     if (hsl.s < 0.15) continue; // neutros não contam
+    // Cores com área ínfima (ícones e selos de status) não definem a identidade.
+    if (b.weight / totalWeight < 0.005) continue;
     if (!families.some((f) => deltaE2000(rgbToLab(f), rgbToLab(b.rgb)) < 12)) families.push(b.rgb);
   }
   if (families.length > 6) {

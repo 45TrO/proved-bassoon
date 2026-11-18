@@ -16,7 +16,7 @@ export function ErrorNotice({ error, onRetry }: { error: Error; onRetry?: () => 
     <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-critical/30 bg-critical/5 px-4 py-3 text-sm">
       <span className="text-ink">{error.message}</span>
       {onRetry && (
-        <button onClick={onRetry} className="font-medium text-critical underline-offset-2 hover:underline">
+        <button onClick={onRetry} className="tap font-medium text-critical underline-offset-2 hover:underline">
           Tentar de novo
         </button>
       )}

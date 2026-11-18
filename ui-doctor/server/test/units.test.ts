@@ -93,7 +93,7 @@ const baseEl = (over: Partial<SnapEl>): SnapEl => ({
   ownBg: 'rgba(0, 0, 0, 0)', bgImage: false, fontSize: 16, fontWeight: 400, fontFamily: 'Inter', lineHeight: 24,
   display: 'block', position: 'static', margin: [0, 0, 0, 0], padding: [0, 0, 0, 0], radius: 0, borderWidth: 0,
   borderColor: 'rgb(0, 0, 0)', textAlign: 'left', interactive: false, name: '', headingLevel: null, imgAlt: null,
-  imgNaturalW: 0, imgNaturalH: 0, objectFit: 'fill', inputType: null, hasLabel: true, placeholder: null,
+  imgNaturalW: 0, imgNaturalH: 0, imgVector: false, objectFit: 'fill', inputType: null, hasLabel: true, placeholder: null,
   autocomplete: null, required: false, overflowRight: 0, clippedByAncestor: false, textCut: false, hidden: false,
   focusOutlineNone: false, ...over,
 });
@@ -152,5 +152,26 @@ describe('correções determinísticas', () => {
     expect(css).toMatch(/@media \(max-width: 900px\) \{[\s\S]*nav > a:nth-of-type\(1\)[\s\S]*min-height: 44px/);
     expect(changes.map((c) => c.issueId)).toEqual(['a11y.contrast', 'ux.touch-target']);
     expect(sanitizeCss(css).removed).toBe(0);
+  });
+});
+
+describe('contraste em elementos com fundo próprio', () => {
+  it('preserva o texto branco do botão e escurece o fundo mantendo o matiz', async () => {
+    const { elementContrast } = await import('../src/analysis/rules/accessibility.js');
+    const button = baseEl({ kind: 'button', tag: 'button', color: 'rgb(255, 255, 255)', bg: 'rgb(201, 130, 74)', ownBg: 'rgb(201, 130, 74)', padding: [6, 10, 6, 10], fontSize: 12 });
+    const c = elementContrast(button)!;
+    expect(c.ratio).toBeLessThan(4.5);
+    expect(c.suggested).toBeNull();
+    const bg = parseColor(c.suggestedBackground)!;
+    expect(contrastRatio(parseColor('#ffffff')!, bg)).toBeGreaterThanOrEqual(4.5);
+    expect(bg.r).toBeGreaterThan(bg.b); // continua laranja/marrom
+
+    const { css, changes } = buildDeterministicFixes(
+      [{ id: 'c', ruleId: 'a11y.contrast', source: 'rules', category: 'accessibility', severity: 'high', title: '', description: '', recommendation: '', occurrences: 1, fixable: true,
+        evidence: [{ viewport: 'desktop', selector: 'button', snippet: 'Comprar', measured: { ratio: c.ratio, required: 4.5, foreground: '#ffffff', background: c.bg, suggestedBackground: c.suggestedBackground! } }] }],
+      {},
+    );
+    expect(css).toContain(`button { background-color: ${c.suggestedBackground} !important; }`);
+    expect(changes[0]!.detail).toMatch(/mantendo o texto #ffffff/);
   });
 });

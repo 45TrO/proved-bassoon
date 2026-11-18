@@ -143,7 +143,7 @@ export function IssueList({ issues, selectedId, onSelect, onStatus }: ListProps)
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-1.5" aria-label="Filtrar por categoria">
+      <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por categoria">
         {(['all', 'visual', 'ux', 'accessibility', 'responsive', 'identity'] as const).map((c) => {
           const n = c === 'all' ? Object.values(counts).reduce((a, b) => a + (b ?? 0), 0) : (counts[c] ?? 0);
           return (

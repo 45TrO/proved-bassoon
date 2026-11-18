@@ -47,6 +47,32 @@ export function Inspector({ analysisId, capture, issues, selectedId, onSelect }:
   }, [issues, capture]);
 
   const selected = boxes.filter((b) => b.issue.id === selectedId);
+
+  // Etiquetas de dimensão: tenta acima da caixa, depois abaixo; se colidir com outra, omite.
+  const labelPos = useMemo(() => {
+    const placed: { x: number; y: number; w: number; h: number }[] = [];
+    const out = new Map<string, 'top' | 'bottom'>();
+    const LH = 18;
+    for (const b of [...selected].sort((a, c) => a.rect.y - c.rect.y || a.rect.x - c.rect.x)) {
+      const text = `${Math.round(b.rect.width)} × ${Math.round(b.rect.height)}`;
+      const w = text.length * 6.6 + 12;
+      const x = b.rect.x * scale - 2;
+      const candidates: ['top' | 'bottom', number][] = [
+        ['top', b.rect.y * scale - LH - 4],
+        ['bottom', (b.rect.y + b.rect.height) * scale + 4],
+      ];
+      for (const [pos, y] of candidates) {
+        if (y < 0) continue;
+        const hit = placed.some((r) => x < r.x + r.w && x + w > r.x && y < r.y + r.h && y + LH > r.y);
+        if (!hit) {
+          placed.push({ x, y, w, h: LH });
+          out.set(b.key, pos);
+          break;
+        }
+      }
+    }
+    return out;
+  }, [selected, scale]);
   const outOfView = selectedId ? issues.find((i) => i.id === selectedId)?.evidence.filter((e) => e.viewport === capture.viewport && e.rect && e.rect.y >= capture.fullHeight).length ?? 0 : 0;
 
   // Leva a primeira evidência do problema selecionado para a área visível.
@@ -67,7 +93,7 @@ export function Inspector({ analysisId, capture, issues, selectedId, onSelect }:
         <span className="tabular">
           {capture.width} × {capture.fullHeight}px
           {capture.documentHeight && capture.documentHeight > capture.fullHeight ? ` de ${capture.documentHeight}px` : ''}
-          <span className="mx-2 text-line-strong">|</span>
+          <span aria-hidden="true" className="mx-2 inline-block h-3 w-px translate-y-0.5 bg-line-strong" />
           {boxes.length} marcações
         </span>
         <button
@@ -128,9 +154,12 @@ export function Inspector({ analysisId, capture, issues, selectedId, onSelect }:
                     boxShadow: isSel ? `0 0 0 3px color-mix(in srgb, ${color} 25%, transparent)` : undefined,
                   }}
                 >
-                  {isSel && (
+                  {isSel && labelPos.has(b.key) && (
                     <span
-                      className="tabular pointer-events-none absolute -top-[22px] left-[-2px] rounded-[3px] px-1.5 py-0.5 font-mono text-[10.5px] leading-none whitespace-nowrap text-white"
+                      className={clsx(
+                        'tabular pointer-events-none absolute left-[-2px] rounded-[3px] px-1.5 py-0.5 font-mono text-[10.5px] leading-none whitespace-nowrap text-white',
+                        labelPos.get(b.key) === 'top' ? '-top-[22px]' : '-bottom-[22px]',
+                      )}
                       style={{ background: color }}
                     >
                       {Math.round(b.rect.width)} × {Math.round(b.rect.height)}
@@ -144,7 +173,7 @@ export function Inspector({ analysisId, capture, issues, selectedId, onSelect }:
       </div>
       {outOfView > 0 && (
         <p className="border-t border-line px-3 py-2 text-xs text-muted">
-          {outOfView} evidência(s) deste problema estão abaixo da área capturada.
+          {outOfView === 1 ? '1 evidência deste problema está abaixo da área capturada.' : `${outOfView} evidências deste problema estão abaixo da área capturada.`}
         </p>
       )}
     </div>

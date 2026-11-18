@@ -2,14 +2,20 @@
   "name": "ui-doctor",
   "private": true,
   "version": "1.0.0",
-  "description": "UI Doctor — diagnóstico e aprimoramento de interfaces digitais",
-  "workspaces": ["server", "web"],
+  "description": "UI Doctor \u2014 diagn\u00f3stico e aprimoramento de interfaces digitais",
+  "workspaces": [
+    "server",
+    "web"
+  ],
   "scripts": {
     "dev": "npm run dev -w server & npm run dev -w web",
-    "build": "npm run build -w server && npm run build -w web",
-    "start": "npm run start -w server",
+    "build": "npm run build -w web && npm run build -w server",
+    "start": "cd server && UIDOCTOR_WEB_DIST=../web/dist node dist/index.js",
     "test": "npm test -w server && npm test -w web",
+    "test:e2e": "npm run build -w web && cd server && npx vitest run test/e2e.test.ts",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w web"
   },
-  "engines": { "node": ">=22.13" }
+  "engines": {
+    "node": ">=22.13"
+  }
 }

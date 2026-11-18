@@ -1,45 +1,35 @@
 # UI Doctor — registro de progresso
 
-## Pronto e testado (backend, 2 commits na branch `ccr-16ad08c4-557l65`)
+## Estado: versão 1.0 funcional
 
-- **Segurança anti-SSRF**: validação de URL (esquemas, credenciais, portas, nomes internos, IPs em notação decimal/hex/octal/IPv6, DNS com todos os registros) e proxy de saída com IP fixado. Todo o tráfego do Chromium passa por ele.
-- **Captura** com Playwright em desktop 1440, tablet 834 e mobile 390, em contexto isolado (sem service workers, pop-ups, downloads, QUIC nem WebRTC UDP).
-- **Coletor de DOM** e **motor de regras** com evidência real (seletor, retângulo, valores medidos):
-  - visual, UX, acessibilidade, responsividade e identidade visual;
-  - paleta por CIELAB/ΔE2000, tipografia e paletas sugeridas com contraste verificado.
-- **Pontuação** transparente (UI, UX, geral, por categoria).
-- **IA (Claude)** opcional via `ANTHROPIC_API_KEY`, com saída estruturada e `fallbacks: "default"`. Achados sem seletor real ou região válida são descartados.
-- **Antes e depois**: CSS de correção determinístico e sanitizado, recaptura da página real e re-medição. A IA complementa no modo "preservar" e é obrigatória no modo "reformulação completa".
-- **Imagem importada**: magic bytes, paleta por pixels em contexto offline. Sem IA, não atribui nota.
-- **Persistência e API**:
-  - SQLite nativo (projetos, favoritos, histórico, status dos problemas, redesigns);
-  - fila de jobs com progresso;
-  - API Fastify com Zod, helmet, rate limit e entrega de arquivos protegida contra path traversal.
-- **Testes do servidor**: 69 passando (segurança, unidades, pipeline real, API ponta a ponta, IA simulada).
+### Backend (`server/`)
+- Proteção anti-SSRF: validação de URL e DNS, mais proxy de saída com IP fixado.
+- Captura isolada em 3 resoluções; detecção de erros de JavaScript da página.
+- Motor de regras com evidência: visual, UX, acessibilidade, responsividade e identidade.
+- Pontuação transparente.
+- Página renderizada em branco **falha com explicação**, em vez de receber nota.
+- IA (Claude) opcional, com descarte de achados sem evidência verificável.
+- Antes e depois com CSS sanitizado, recaptura e re-medição. Em botões, o contraste é corrigido escurecendo o fundo e mantendo o texto e o matiz.
+- SQLite nativo; fila com progresso; API Fastify protegida; entrega do SPA com 404 correto para assets.
 
-## Em andamento (frontend, ainda NÃO commitado nem compilado)
+### Frontend (`web/`)
+- Início, Resultado (Diagnóstico, Identidade visual, Responsividade, Antes e depois), Painel, Projetos, Projeto, 404.
+- Inspetor de evidências com spotlight e etiquetas de dimensão sem sobreposição.
+- Tema claro e escuro, responsivo até 390 px, foco visível, alvos de toque de 44 px, tokens de cor que passam WCAG AA.
 
-Escrito em `web/`:
-- configuração Vite/TS/Tailwind v4 e tokens de design (IBM Plex, tema claro e escuro, cores de série validadas);
-- `lib/` (API, formatação e validação, hooks, tema);
-- componentes base (Button, Tabs, ScoreRing, SeverityBadge, Toast, estados vazios e de erro);
-- AppShell com sidebar e gaveta mobile;
-- gráficos: evolução UI/UX com tabela alternativa, barras, severidade empilhada, sparkline;
-- AnalyzeForm (URL e upload), Inspector (screenshot com caixas de evidência e spotlight), IssueList, ScoreSummary, ProgressView, IdentityPanel, ResponsivePanel.
+### Qualidade
+- 75 testes no servidor (incluindo E2E no navegador) e 22 no frontend.
+- **Autodiagnóstico:** o UI Doctor analisou as próprias páginas. Os problemas reais encontrados (contraste do token `--faint` e das severidades, alvos de toque pequenos, desalinhamento de grades, overflow transitório de gráfico no mobile) foram corrigidos. Início, Painel e Projetos medem 100.
+- Falsos positivos encontrados e corrigidos, com testes de regressão:
+  - SVG ampliado ou "distorcido";
+  - camadas de superfície neutras tratadas como cores acidentais;
+  - escala de espaçamento Tailwind (meios-passos de 2 px);
+  - imagens com moldura interna em cards;
+  - cores de status com área ínfima contando como dispersão de paleta.
 
-**O que eu estava fazendo ao parar:** escrevendo `components/analysis/BeforeAfter.tsx`. Ele terá controle deslizante acessível, modo lado a lado, alternância desktop/mobile, delta de nota e de problemas, lista de alterações e "copiar CSS".
-
-## Falta
-
-1. `BeforeAfter.tsx`.
-2. Páginas: Início (formulário central, projetos recentes, indicadores), Resultado (abas Diagnóstico / Identidade / Responsividade / Antes e depois), Painel, Projetos, Projeto, 404; `main.tsx` e `App.tsx` com rotas.
-3. `src/test/setup.ts` e testes do frontend (validação do formulário, filtros de problemas, componentes).
-4. Rodar typecheck e build do web, corrigir erros, subir servidor e frontend e revisar visualmente com screenshots (desktop e mobile, claro e escuro).
-5. Teste E2E do fluxo completo no navegador.
-6. Servir o build do web pelo Fastify em produção; README com instalação, variáveis de ambiente, segurança e deploy (incluindo o sandbox do Chromium como não-root); `.env.example`.
-7. Commit e push.
-
-## Observações
-
-- Nesta sessão, a política de rede bloqueia sites externos. Os testes usam fixtures locais liberados por `UIDOCTOR_ALLOW_PRIVATE_HOSTS`, que vale apenas para teste.
-- As vulnerabilidades apontadas pelo `npm audit` estão só em Vite e Vitest (ferramentas de desenvolvimento, fora do bundle de produção).
+## Próximos passos sugeridos
+- Testar a revisão por IA com uma `ANTHROPIC_API_KEY` real. Até aqui foi validada com um provedor simulado.
+- Proposta visual para imagens importadas (exige gerar uma recriação da interface).
+- Fila externa (ex.: Redis) e armazenamento de capturas em objeto (S3) para escalar horizontalmente.
+- Autenticação e contas multiusuário para uso comercial.
+- Analisar sites públicos reais: o ambiente de desenvolvimento desta sessão bloqueia hosts externos, então a validação foi feita com páginas locais.

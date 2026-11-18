@@ -72,7 +72,7 @@ export function AnalyzeForm() {
 
   return (
     <div className="w-full">
-      <div className="mb-3 flex gap-1" role="radiogroup" aria-label="Origem da análise">
+      <div className="mb-3 flex justify-center gap-1" role="radiogroup" aria-label="Origem da análise">
         {(
           [
             ['url', 'Endereço do site', Globe],
@@ -170,7 +170,7 @@ export function AnalyzeForm() {
         </div>
       )}
 
-      <p id={errId} role={shownError ? 'alert' : undefined} className={clsx('mt-2.5 min-h-5 px-1 text-sm', shownError ? 'text-critical' : 'text-faint')}>
+      <p id={errId} role={shownError ? 'alert' : undefined} className={clsx('mt-2.5 min-h-5 px-1 text-center text-sm', shownError ? 'text-critical' : 'text-faint')}>
         {shownError ??
           (mode === 'url'
             ? 'A página é aberta em um navegador isolado e capturada em 1440, 834 e 390 px de largura.'

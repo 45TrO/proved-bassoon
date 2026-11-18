@@ -38,6 +38,22 @@ export function buildDeterministicFixes(issues: Issue[], snapshots: Snapshots): 
       if (!sel || !safeSelector(sel)) continue;
       switch (issue.ruleId) {
         case 'a11y.contrast': {
+          const bgColor = ev.measured.suggestedBackground;
+          if (typeof bgColor === 'string' && /^#[0-9a-f]{6}$/i.test(bgColor)) {
+            const rule = `${sel} { background-color: ${bgColor} !important; }`;
+            if (add(`contrast:${sel}`, rule)) {
+              changes.push({
+                id: `fix-${changes.length}`,
+                issueId: issue.id,
+                title: 'Contraste corrigido',
+                detail: `Fundo de "${(ev.snippet ?? '').slice(0, 40)}" de ${ev.measured.background} para ${bgColor}, mantendo o texto ${ev.measured.foreground} e o matiz (${ev.measured.ratio}:1 → ≥ ${ev.measured.required}:1).`,
+                selector: sel,
+                css: rule,
+                source: 'rules',
+              });
+            }
+            break;
+          }
           const color = ev.measured.suggestedColor;
           if (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color)) break;
           const rule = `${sel} { color: ${color} !important; }`;

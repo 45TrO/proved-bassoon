@@ -15,14 +15,14 @@
   --ink: #15171c;
   --ink-2: #3a3f4a;
   --muted: #5b616e;
-  --faint: #8a909c;
+  --faint: #666c79;
   --inspect: #2d5bff;
   --inspect-soft: rgb(45 91 255 / 0.1);
-  --sev-critical: #d92d20;
-  --sev-high: #e8590c;
-  --sev-medium: #b7791f;
-  --sev-low: #64748b;
-  --ok: #15803d;
+  --sev-critical: #c8281c;
+  --sev-high: #b54708;
+  --sev-medium: #92600a;
+  --sev-low: #5f6b7d;
+  --ok: #137339;
   --series-ui: #2d5bff;
   --series-ux: #1baf7a;
   --shadow-pop: 0 1px 2px rgb(21 23 28 / 0.06), 0 8px 24px -8px rgb(21 23 28 / 0.14);
@@ -38,7 +38,7 @@
   --ink: #eceef2;
   --ink-2: #c7cbd3;
   --muted: #959bab;
-  --faint: #6c7282;
+  --faint: #868c9c;
   --inspect: #6d8bff;
   --inspect-soft: rgb(109 139 255 / 0.14);
   --sev-critical: #f2655b;
@@ -100,6 +100,15 @@
   button:not(:disabled),
   [role='button']:not([aria-disabled='true']) {
     cursor: pointer;
+  }
+}
+
+/* Alvo de toque mínimo de 44 px em telas pequenas ou ponteiros grossos (WCAG 2.5.5). */
+@media (max-width: 639px), (pointer: coarse) {
+  .tap {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
   }
 }
 

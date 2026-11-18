@@ -16,7 +16,8 @@ const alignmentRule: Rule = {
     const vw = snap.viewport.width;
     const candidates = visible(snap).filter(
       (e) =>
-        (e.kind === 'heading' || e.kind === 'text' || e.kind === 'button' || e.kind === 'img') &&
+        // Imagens ficam de fora: molduras internas em cards recuam a imagem de propósito.
+        (e.kind === 'heading' || e.kind === 'text' || e.kind === 'button') &&
         e.display !== 'inline' &&
         e.position !== 'fixed' &&
         e.position !== 'absolute' &&
@@ -123,13 +124,16 @@ const spacingRule: Rule = {
       );
     }
 
-    // 2) Escala: proporção de valores de margin/padding que não são múltiplos de 4.
+    // 2) Escala: margens e paddings de 3 a 64 px (os tokens de espaçamento; valores maiores
+    // costumam ser centralização automática) comparados a uma escala comum: múltiplos de 4,
+    // com meios-passos de 2 px até 16 px (4, 6, 8, 10, 12, 14, 16, 20, 24…).
+    const onScale = (v: number) => v % 4 === 0 || (v <= 16 && v % 2 === 0);
     const values: number[] = [];
-    for (const e of els) for (const v of [...e.margin, ...e.padding]) if (v > 0) values.push(v);
+    for (const e of els) for (const v of [...e.margin, ...e.padding]) if (v >= 3 && v <= 64) values.push(v);
     if (values.length >= 40) {
-      const off = values.filter((v) => v % 4 !== 0 && v > 2);
+      const off = values.filter((v) => !onScale(v));
       const ratio = off.length / values.length;
-      if (ratio > 0.3) {
+      if (ratio > 0.2) {
         const freq = new Map<number, number>();
         for (const v of off) freq.set(v, (freq.get(v) ?? 0) + 1);
         const top = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
@@ -137,10 +141,10 @@ const spacingRule: Rule = {
           issue({
             ruleId: 'visual.spacing-scale',
             category: 'visual',
-            severity: ratio > 0.5 ? 'medium' : 'low',
+            severity: ratio > 0.45 ? 'medium' : 'low',
             title: 'Espaçamentos fora de uma escala consistente',
-            description: `${Math.round(ratio * 100)}% dos valores de margin/padding (${off.length} de ${values.length}) não seguem uma escala de 4 px. Valores mais frequentes fora da escala: ${top.map(([v]) => `${v}px`).join(', ')}.`,
-            recommendation: 'Adote uma escala de espaçamento (4, 8, 12, 16, 24, 32, 48, 64) e substitua os valores avulsos pelo token mais próximo.',
+            description: `${Math.round(ratio * 100)}% dos espaçamentos entre 3 e 64 px (${off.length} de ${values.length}) não seguem uma escala regular. Valores mais frequentes fora da escala: ${top.map(([v]) => `${v}px`).join(', ')}.`,
+            recommendation: 'Adote uma escala de espaçamento (4, 8, 12, 16, 24, 32, 48, 64, com meios-passos de 2 px só em componentes pequenos) e troque os valores avulsos pelo token mais próximo.',
             evidence: [{ viewport: vp, measured: { offScale: off.length, total: values.length, examples: top.map(([v, c]) => `${v}px ×${c}`).join(', ') } }],
             occurrences: off.length,
           }),
@@ -303,7 +307,7 @@ const proportionRule: Rule = {
     const upscaled: Evidence[] = [];
     const distorted: Evidence[] = [];
     for (const e of visible(snap)) {
-      if (e.tag !== 'img' || e.imgNaturalW === 0 || e.imgNaturalH === 0) continue;
+      if (e.tag !== 'img' || e.imgVector || e.imgNaturalW === 0 || e.imgNaturalH === 0) continue;
       const scale = e.w / e.imgNaturalW;
       if (scale > 1.6 && e.w >= 160) {
         upscaled.push(evidenceFrom(vp, e, { natural: `${e.imgNaturalW}×${e.imgNaturalH}`, rendered: `${e.w}×${e.h}`, scale: `${scale.toFixed(1)}×` }));

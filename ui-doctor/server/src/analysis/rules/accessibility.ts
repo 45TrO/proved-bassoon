@@ -4,7 +4,14 @@ import { blend, contrastRatio, fixContrast, isLargeText, parseColor, round2, toH
 import { eachViewport, evidenceFrom, issue, plural, primary, uniqueBySelector, visible, type Rule, type Snapshots } from './helpers.js';
 
 /** Calcula o contraste efetivo de um elemento de texto. Null quando não mensurável. */
-export function elementContrast(el: SnapEl): { ratio: number; required: number; fg: string; bg: string; suggested: string | null } | null {
+export function elementContrast(el: SnapEl): {
+  ratio: number;
+  required: number;
+  fg: string;
+  bg: string;
+  suggested: string | null;
+  suggestedBackground: string | null;
+} | null {
   if (el.bgImage) return null;
   const bg = parseColor(el.bg);
   const fgRaw = parseColor(el.color);
@@ -13,8 +20,21 @@ export function elementContrast(el: SnapEl): { ratio: number; required: number; 
   const fg = fgRaw.a < 1 ? blend(fgRaw, opaqueBg) : fgRaw;
   const ratio = contrastRatio(fg, opaqueBg);
   const required = isLargeText(el.fontSize, el.fontWeight) ? 3 : 4.5;
-  const fixed = ratio < required ? fixContrast(fg, opaqueBg, required + 0.1) : null;
-  return { ratio: round2(ratio), required, fg: toHex(fg), bg: toHex(opaqueBg), suggested: fixed ? toHex(fixed) : null };
+  // Em elementos com fundo próprio (botões, selos), preservar a cor do texto e ajustar o
+  // fundo mantém a identidade: botão laranja com texto branco continua assim, só mais escuro.
+  const own = parseColor(el.ownBg);
+  const paintsOwnBg = Boolean(own && own.a >= 0.9) && (el.kind === 'button' || el.kind === 'link' || el.padding.some((p) => p >= 4));
+  let suggested: string | null = null;
+  let suggestedBackground: string | null = null;
+  if (ratio < required) {
+    const bgFix = paintsOwnBg ? fixContrast(opaqueBg, fg, required + 0.1) : null;
+    if (bgFix) suggestedBackground = toHex(bgFix);
+    else {
+      const fgFix = fixContrast(fg, opaqueBg, required + 0.1);
+      suggested = fgFix ? toHex(fgFix) : null;
+    }
+  }
+  return { ratio: round2(ratio), required, fg: toHex(fg), bg: toHex(opaqueBg), suggested, suggestedBackground };
 }
 
 const contrastRule: Rule = {
@@ -35,6 +55,7 @@ const contrastRule: Rule = {
             background: c.bg,
             fontSize: el.fontSize,
             ...(c.suggested ? { suggestedColor: c.suggested } : {}),
+            ...(c.suggestedBackground ? { suggestedBackground: c.suggestedBackground } : {}),
           }),
           ratio: c.ratio,
         });
@@ -52,7 +73,7 @@ const contrastRule: Rule = {
         title: 'Texto com contraste insuficiente',
         description: `${plural(unique.length, 'elemento de texto não atinge', 'elementos de texto não atingem')} o contraste mínimo WCAG 2.2 AA. O pior caso mede ${worst}:1.`,
         recommendation:
-          'Ajuste a luminosidade da cor do texto (mantendo o matiz da marca) até 4.5:1 para texto normal e 3:1 para texto grande. As cores sugeridas em cada evidência já atingem o mínimo.',
+          'Ajuste a luminosidade (mantendo o matiz da marca) até 4.5:1 para texto normal e 3:1 para texto grande. Em botões e selos, escureça ou clareie o fundo e preserve a cor do texto. As cores sugeridas em cada evidência já atingem o mínimo.',
         evidence: unique.map(({ ratio: _r, ...e }) => e),
         occurrences: unique.length,
         fixable: true,

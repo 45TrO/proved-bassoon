@@ -41,6 +41,8 @@ export interface TopCrop {
 
 export interface CaptureOutput {
   topCrops: TopCrop[];
+  /** Erros de JavaScript/console da própria página, por viewport. */
+  jsErrors: number;
   snapshots: Partial<Record<ViewportName, Snapshot>>;
   captures: Capture[];
   finalUrl: string;
@@ -120,7 +122,7 @@ async function captureViewport(
   spec: ViewportSpec,
   proxyUrl: string,
   blocked: BlockedRequest[],
-): Promise<{ snapshot: Snapshot; capture: Capture; finalUrl: string; title: string; topCrop?: TopCrop }> {
+): Promise<{ snapshot: Snapshot; capture: Capture; finalUrl: string; title: string; topCrop?: TopCrop; jsErrors: number }> {
   const { config } = options;
   const context = await newIsolatedContext(options, spec, proxyUrl);
   try {
@@ -130,6 +132,11 @@ async function captureViewport(
       if (p !== page) void p.close().catch(() => undefined);
     });
     page.on('dialog', (d) => void d.dismiss().catch(() => undefined));
+    let jsErrors = 0;
+    page.on('pageerror', () => jsErrors++);
+    page.on('console', (m) => {
+      if (m.type() === 'error') jsErrors++;
+    });
     page.setDefaultTimeout(config.navigationTimeoutMs);
 
     let response;
@@ -191,6 +198,7 @@ async function captureViewport(
     }
     return {
       snapshot,
+      jsErrors,
       topCrop,
       capture: {
         viewport: spec.name,
@@ -222,6 +230,7 @@ export async function captureUrl(options: CaptureOptions): Promise<CaptureOutput
     blocked: proxy.blocked,
     failedViewports: [],
     topCrops: [],
+    jsErrors: 0,
   };
   try {
     const viewports = options.viewports ?? VIEWPORTS;
@@ -233,6 +242,7 @@ export async function captureUrl(options: CaptureOptions): Promise<CaptureOutput
         out.snapshots[spec.name] = r.snapshot;
         out.captures.push(r.capture);
         if (r.topCrop) out.topCrops.push(r.topCrop);
+        out.jsErrors = Math.max(out.jsErrors, r.jsErrors);
         if (index === 0) {
           out.finalUrl = r.finalUrl;
           out.title = r.title;

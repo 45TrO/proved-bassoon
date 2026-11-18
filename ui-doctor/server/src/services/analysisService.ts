@@ -94,6 +94,18 @@ export class AnalysisService {
       });
       progress.done('capture', `${capture.captures.length} resoluções capturadas`);
 
+      // Página sem conteúdo visível não pode ser avaliada: falhar é mais honesto que pontuar.
+      const visibleCount = Math.max(...Object.values(capture.snapshots).map((s) => s?.elements.filter((e) => !e.hidden).length ?? 0));
+      const words = Math.max(...Object.values(capture.snapshots).map((s) => s?.elements.reduce((a, e) => a + (e.ownText ? e.words : 0), 0) ?? 0));
+      if (visibleCount < 3 || (visibleCount < 8 && words === 0)) {
+        throw new CaptureError(
+          capture.jsErrors > 0
+            ? `A página carregou sem conteúdo visível e registrou ${capture.jsErrors} erro(s) de JavaScript. Não há o que medir; verifique se o site funciona fora do navegador do usuário logado.`
+            : 'A página carregou sem conteúdo visível (pode exigir login, depender de recursos bloqueados ou renderizar só após interação). Não há o que medir.',
+          'unreachable',
+        );
+      }
+
       progress.start('rules', 'Executando regras de diagnóstico');
       save('analyzing');
       const snapshots = capture.snapshots;
@@ -108,6 +120,7 @@ export class AnalysisService {
       if (tallest) limitations.push(`Captura limitada a ${tallest.fullHeight}px de altura (página tem ${tallest.documentHeight}px).`);
       if (capture.blocked.length) limitations.push(`${capture.blocked.length} requisições da página foram bloqueadas pela política de segurança (rede interna, portas ou limites).`);
       for (const e of rules.errors) limitations.push(`Regra com falha: ${e}`);
+      if (capture.jsErrors) limitations.push(`A página registrou ${capture.jsErrors} erro(s) de JavaScript durante a captura; partes da interface podem não ter sido renderizadas.`);
 
       let issues: Issue[] = rules.issues;
       const aiInfo: AnalysisResult['ai'] = { enabled: this.aiEnabled, used: false };

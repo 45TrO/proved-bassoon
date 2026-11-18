@@ -238,6 +238,7 @@ export const COLLECTOR_SOURCE = String.raw`(() => {
       imgAlt: el.tagName === 'IMG' ? el.getAttribute('alt') : null,
       imgNaturalW: el.tagName === 'IMG' ? el.naturalWidth : 0,
       imgNaturalH: el.tagName === 'IMG' ? el.naturalHeight : 0,
+      imgVector: el.tagName === 'IMG' ? /\.svg(\?|#|$)|^data:image\/svg/i.test(el.currentSrc || el.src || '') : false,
       objectFit: cs.objectFit,
       inputType,
       hasLabel,

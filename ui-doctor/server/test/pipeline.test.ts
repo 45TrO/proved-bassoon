@@ -84,6 +84,17 @@ describe('pipeline de captura e análise', () => {
     expect(issues.find((i) => i.ruleId === 'responsive.overflow')).toBeUndefined();
   }, 90_000);
 
+  it('não acusa SVG ampliado nem camadas de superfície neutras (regressão de falsos positivos)', async () => {
+    const out = await captureUrl({ url: `${servers.siteUrl}/demo-store.html`, outDir, config, filePrefix: 'demo-' });
+    const { issues } = runRules(out.snapshots);
+    const ids = issues.map((i) => i.ruleId);
+    expect(ids).not.toContain('visual.img-upscaled');
+    expect(ids).not.toContain('visual.img-distorted');
+    expect(ids).not.toContain('identity.near-duplicate-colors');
+    // Os problemas reais da página continuam sendo detectados.
+    expect(ids).toEqual(expect.arrayContaining(['a11y.contrast', 'a11y.img-alt', 'responsive.overflow', 'responsive.nav', 'ux.touch-target']));
+  }, 90_000);
+
   it('bloqueia redirect para rede interna', async () => {
     await expect(
       captureUrl({ url: `${servers.siteUrl}/redirect-internal`, outDir, config, filePrefix: 'redir-' }),

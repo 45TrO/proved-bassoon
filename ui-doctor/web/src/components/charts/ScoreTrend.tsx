@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { DashboardStats } from '@shared/types';
-import { shortDate } from '../../lib/format';
+import { pluralize, shortDate } from '../../lib/format';
 import { useWidth } from './useWidth';
 
 type Point = DashboardStats['timeline'][number];
@@ -35,7 +35,7 @@ export function ScoreTrend({ data }: { data: Point[] }) {
   };
 
   return (
-    <div>
+    <div ref={ref} className="min-w-0">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-4 text-xs text-muted" aria-label="Legenda">
           {SERIES.map((s) => (
@@ -45,7 +45,7 @@ export function ScoreTrend({ data }: { data: Point[] }) {
             </span>
           ))}
         </div>
-        <button onClick={() => setAsTable((v) => !v)} className="text-xs text-muted underline-offset-2 hover:text-ink hover:underline">
+        <button onClick={() => setAsTable((v) => !v)} className="tap text-xs text-muted underline-offset-2 hover:text-ink hover:underline">
           {asTable ? 'Ver gráfico' : 'Ver como tabela'}
         </button>
       </div>
@@ -73,7 +73,7 @@ export function ScoreTrend({ data }: { data: Point[] }) {
           </table>
         </div>
       ) : (
-        <div ref={ref} className="relative">
+        <div className="relative">
           <svg width={width} height={height} role="img" aria-label={`Evolução das notas médias de UI e UX em ${data.length} dias`}>
             {[0, 50, 100].map((v) => (
               <g key={v}>
@@ -127,7 +127,7 @@ export function ScoreTrend({ data }: { data: Point[] }) {
                   <span className="font-medium text-ink">{data[hover]![s.key]}</span>
                 </div>
               ))}
-              <div className="mt-1 text-faint">{data[hover]!.analyses} análise(s)</div>
+              <div className="mt-1 text-faint">{pluralize(data[hover]!.analyses, 'análise', 'análises')}</div>
             </div>
           )}
         </div>

@@ -211,10 +211,15 @@ export async function buildApp({ config, ai, logger = true }: BuildOptions) {
   });
 
   if (config.webDist) {
-    await app.register(fastifyStatic, { root: config.webDist, wildcard: false });
+    // wildcard: serve arquivos criados após a inicialização (novo build sem reinício).
+    await app.register(fastifyStatic, { root: config.webDist, wildcard: true, index: false });
+    app.get('/', (_req, reply) => reply.type('text/html').header('cache-control', 'no-cache').sendFile('index.html'));
     app.setNotFoundHandler((req, reply) => {
-      if (req.url.startsWith('/api/')) return reply.code(404).send({ error: { code: 'not_found', message: 'Rota não encontrada.' } });
-      return reply.type('text/html').sendFile('index.html');
+      const pathname = req.url.split('?')[0] ?? '';
+      if (pathname.startsWith('/api/')) return reply.code(404).send({ error: { code: 'not_found', message: 'Rota não encontrada.' } });
+      // Arquivo inexistente (asset com extensão) é 404; só rotas de navegação recebem o SPA.
+      if (req.method !== 'GET' || /\.[a-z0-9]{1,8}$/i.test(pathname)) return reply.code(404).type('text/plain').send('Not found');
+      return reply.type('text/html').header('cache-control', 'no-cache').sendFile('index.html');
     });
   }
 

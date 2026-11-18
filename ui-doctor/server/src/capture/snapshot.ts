@@ -52,6 +52,8 @@ export interface SnapEl {
   imgAlt: string | null;
   imgNaturalW: number;
   imgNaturalH: number;
+  /** Imagem vetorial (SVG): não perde nitidez nem distorce por padrão. */
+  imgVector: boolean;
   objectFit: string;
   inputType: string | null;
   hasLabel: boolean;

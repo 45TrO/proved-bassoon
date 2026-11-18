@@ -79,6 +79,16 @@ describe('API', () => {
     expect(detail.result!.limitations.some((l) => l.includes('bloqueadas'))).toBe(true);
   }, 120_000);
 
+  it('falha com explicação quando a página renderiza em branco, em vez de pontuar', async () => {
+    const r = await app.inject({ method: 'POST', url: '/api/analyses', payload: { url: `${servers.siteUrl}/blank.html` } });
+    await service.queue.onIdle();
+    const d: AnalysisDetail = (await app.inject({ method: 'GET', url: `/api/analyses/${r.json().id}` })).json();
+    expect(d.status).toBe('failed');
+    expect(d.overall).toBeNull();
+    expect(d.error).toMatch(/sem conteúdo visível/);
+    await app.inject({ method: 'DELETE', url: `/api/analyses/${d.id}` });
+  }, 60_000);
+
   it('serve capturas e bloqueia path traversal', async () => {
     const file = detail.result!.captures[0]!.file;
     const ok = await app.inject({ method: 'GET', url: `/api/files/${analysisId}/${file}` });
@@ -144,7 +154,7 @@ describe('API', () => {
 
   it('gerencia projetos e favoritos', async () => {
     const projects: ProjectSummary[] = (await app.inject({ method: 'GET', url: '/api/projects' })).json();
-    const site = projects.find((p) => p.sourceType === 'url')!;
+    const site = projects.find((p) => p.target.endsWith('/flawed.html'))!;
     expect(site.analysisCount).toBe(1);
     expect((await app.inject({ method: 'PATCH', url: `/api/projects/${site.id}`, payload: { favorite: true } })).statusCode).toBe(200);
     expect((await app.inject({ method: 'PATCH', url: `/api/projects/${site.id}`, payload: {} })).statusCode).toBe(400);
