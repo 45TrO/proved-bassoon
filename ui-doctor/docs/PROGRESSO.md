@@ -20,7 +20,7 @@
 ### Qualidade
 - 75 testes no servidor (incluindo E2E no navegador) e 22 no frontend.
 - **Autodiagnóstico:** o UI Doctor analisou as próprias páginas. Os problemas reais encontrados (contraste do token `--faint` e das severidades, alvos de toque pequenos, desalinhamento de grades, overflow transitório de gráfico no mobile) foram corrigidos. Início, Painel e Projetos medem 100.
-- Falsos positivos encontrados e corrigidos, com testes de regressão:
+- Falsos positivos encontrados e corrigidos (os dois primeiros com teste de regressão; os demais validados re-analisando as páginas):
   - SVG ampliado ou "distorcido";
   - camadas de superfície neutras tratadas como cores acidentais;
   - escala de espaçamento Tailwind (meios-passos de 2 px);
