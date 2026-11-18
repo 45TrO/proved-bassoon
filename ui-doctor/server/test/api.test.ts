@@ -7,7 +7,8 @@ import { buildApp } from '../src/app.js';
 import { closeBrowser } from '../src/capture/browser.js';
 import { loadConfig } from '../src/config.js';
 import type { AnalysisDetail, DashboardStats, ProjectSummary, RedesignSummary } from '../src/domain/types.js';
-import type { AiProvider, AnalysisService } from '../src/services/analysisService.js';
+import type { AnalysisService } from '../src/services/analysisService.js';
+import { terminateOcr } from '../src/vision/ocr.js';
 import { startFixtureServers, type Servers } from './fixtureServer.js';
 
 let servers: Servers;
@@ -31,15 +32,15 @@ beforeAll(async () => {
   const config = loadConfig({
     UIDOCTOR_DATA_DIR: dataDir,
     UIDOCTOR_ALLOW_PRIVATE_HOSTS: `127.0.0.1:${servers.sitePort}`,
-    UIDOCTOR_DISABLE_AI: '1',
     UIDOCTOR_RATE_LIMIT: '100',
   });
-  ({ app, service } = await buildApp({ config, ai: null, logger: false }));
+  ({ app, service } = await buildApp({ config, logger: false }));
 });
 
 afterAll(async () => {
   await app.close();
   await closeBrowser();
+  await terminateOcr();
   await servers.close();
   await fs.rm(dataDir, { recursive: true, force: true });
 });
@@ -48,10 +49,10 @@ describe('API', () => {
   let analysisId = '';
   let detail: AnalysisDetail;
 
-  it('health informa IA desativada', async () => {
+  it('health informa o OCR offline pronto', async () => {
     const r = await app.inject({ method: 'GET', url: '/api/health' });
     expect(r.statusCode).toBe(200);
-    expect(r.json().ai.enabled).toBe(false);
+    expect(r.json().vision).toEqual({ ocrLanguages: ['por', 'eng'], ocrReady: true });
   });
 
   it('valida entrada e recusa SSRF antes de enfileirar', async () => {
@@ -75,7 +76,15 @@ describe('API', () => {
     expect(detail.result!.scores.overall).toBeLessThan(80);
     expect(detail.result!.issues.length).toBeGreaterThan(10);
     expect(detail.result!.captures.map((c) => c.viewport)).toEqual(['desktop', 'tablet', 'mobile']);
-    expect(detail.progress.find((s) => s.key === 'ai')!.state).toBe('skipped');
+    expect(detail.progress.find((s) => s.key === 'vision')!.state).toBe('done');
+    // Pipeline de visão: OCR leu a página e o monitor confirmou o contraste medido no DOM.
+    const v = detail.result!.vision;
+    expect(v.modules.ocr.words).toBeGreaterThan(50);
+    expect(v.modules.dom.parsed).toBe(true);
+    expect(v.findings.corroborated).toBeGreaterThan(0);
+    const contrast = detail.result!.issues.find((i) => i.ruleId === 'a11y.contrast')!;
+    expect(contrast.corroboration).toEqual(expect.arrayContaining(['OCR', 'Imagem']));
+    expect(detail.result!.issues.some((i) => i.ruleId === 'vision.dom:iframe')).toBe(true);
     expect(detail.result!.limitations.some((l) => l.includes('bloqueadas'))).toBe(true);
   }, 120_000);
 
@@ -126,11 +135,15 @@ describe('API', () => {
     expect(img.statusCode).toBe(200);
   }, 120_000);
 
-  it('reformulação completa exige IA', async () => {
+  it('reformulação completa funciona por regras, sem IA', async () => {
     const r = await app.inject({ method: 'POST', url: `/api/analyses/${analysisId}/redesigns`, payload: { mode: 'full' } });
-    expect(r.statusCode).toBe(422);
-    expect(r.json().error.code).toBe('ai_required');
-  });
+    expect(r.statusCode).toBe(202);
+    await service.queue.onIdle();
+    const rd: RedesignSummary = (await app.inject({ method: 'GET', url: `/api/redesigns/${r.json().id}` })).json();
+    expect(rd.status).toBe('done');
+    expect(rd.mode).toBe('full');
+    expect(rd.scoresAfter!.overall).toBeGreaterThan(rd.scoresBefore!.overall);
+  }, 120_000);
 
   it('analisa imagem importada sem inventar pontuação', async () => {
     const jpg = await fs.readFile(path.join(service.analysisDir(analysisId), 'desktop-top.jpg'));
@@ -140,10 +153,16 @@ describe('API', () => {
     await service.queue.onIdle();
     const d: AnalysisDetail = (await app.inject({ method: 'GET', url: `/api/analyses/${r.json().id}` })).json();
     expect(d.status).toBe('done');
-    expect(d.result!.scored).toBe(false);
-    expect(d.overall).toBeNull();
+    // Sem IA: OCR + processamento de imagem medem a captura e a nota é atribuída.
+    expect(d.result!.scored).toBe(true);
+    expect(d.overall).not.toBeNull();
+    expect(d.result!.unmeasured).toEqual(['responsive']);
     expect(d.result!.identity.palette.length).toBeGreaterThan(0);
-    expect(d.result!.issues).toEqual([]);
+    expect(d.result!.vision.modules.ocr.words).toBeGreaterThan(20);
+    expect(d.result!.issues.every((i) => i.source === 'vision')).toBe(true);
+    // O texto cinza da página (2.06:1) é detectado apenas pelos pixels.
+    const contrast = d.result!.issues.find((i) => i.ruleId === 'vision.ocr-contrast')!;
+    expect(Number(contrast.evidence[0]!.measured.ratio)).toBeLessThan(2.4);
   }, 60_000);
 
   it('recusa arquivos que não são imagens, independentemente do content-type', async () => {
@@ -171,55 +190,19 @@ describe('API', () => {
   });
 });
 
-describe('API com IA (provedor simulado)', () => {
-  let aiApp: FastifyInstance;
-  let aiService: AnalysisService;
-  let dir: string;
-
-  beforeAll(async () => {
-    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'uidoctor-ai-'));
+describe('pipeline de visão substituível', () => {
+  it('falha do pipeline de visão não derruba a análise: mantém os achados do DOM', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'uidoctor-vf-'));
     const config = loadConfig({ UIDOCTOR_DATA_DIR: dir, UIDOCTOR_ALLOW_PRIVATE_HOSTS: `127.0.0.1:${servers.sitePort}`, UIDOCTOR_RATE_LIMIT: '100' });
-    const fake: AiProvider = {
-      async analyze(ctx) {
-        const h2 = ctx.snapshots.desktop!.elements.find((e) => e.tag === 'h2')!;
-        return {
-          refused: false,
-          model: 'modelo-simulado',
-          findings: [
-            { category: 'visual', severity: 'medium', title: 'Título fraco', description: 'd', recommendation: 'r', viewport: 'desktop', selector: h2.selector, region: null, observation: 'O título principal tem peso visual baixo.' },
-            { category: 'ux', severity: 'high', title: 'Inventado', description: 'd', recommendation: 'r', viewport: 'desktop', selector: '#nao-existe', region: null, observation: 'x' },
-          ],
-        };
-      },
-      async redesign() {
-        return { css: 'h2 { letter-spacing: -0.01em; }\n.x { background: url(http://evil) }', changes: [{ title: 'Título refinado', detail: 'Espaçamento entre letras ajustado.', selector: 'h2' }, { title: 'Falso', detail: '', selector: '.inventado' }] };
-      },
-    };
-    ({ app: aiApp, service: aiService } = await buildApp({ config, ai: fake, logger: false }));
-  });
-
-  afterAll(async () => {
-    await aiApp.close();
+    const built = await buildApp({ config, logger: false, vision: async () => { throw new Error('OCR indisponível'); } });
+    const r = await built.app.inject({ method: 'POST', url: '/api/analyses', payload: { url: `${servers.siteUrl}/flawed.html` } });
+    await built.service.queue.onIdle();
+    const d: AnalysisDetail = (await built.app.inject({ method: 'GET', url: `/api/analyses/${r.json().id}` })).json();
+    expect(d.status).toBe('done');
+    expect(d.progress.find((s) => s.key === 'vision')!.state).toBe('skipped');
+    expect(d.result!.vision.warnings[0]).toMatch(/OCR indisponível/);
+    expect(d.result!.issues.length).toBeGreaterThan(10);
+    await built.app.close();
     await fs.rm(dir, { recursive: true, force: true });
-  });
-
-  it('aceita apenas achados com evidência e sanitiza o CSS da IA', async () => {
-    const r = await aiApp.inject({ method: 'POST', url: '/api/analyses', payload: { url: `${servers.siteUrl}/flawed.html` } });
-    await aiService.queue.onIdle();
-    const d: AnalysisDetail = (await aiApp.inject({ method: 'GET', url: `/api/analyses/${r.json().id}` })).json();
-    const aiIssues = d.result!.issues.filter((i) => i.source === 'ai');
-    expect(aiIssues.map((i) => i.title)).toEqual(['Título fraco']);
-    expect(aiIssues[0]!.evidence[0]!.rect!.width).toBeGreaterThan(0);
-    expect(d.result!.ai).toMatchObject({ used: true, model: 'modelo-simulado', rejected: 1 });
-
-    const red = await aiApp.inject({ method: 'POST', url: `/api/analyses/${d.id}/redesigns`, payload: { mode: 'full' } });
-    expect(red.statusCode).toBe(202);
-    await aiService.queue.onIdle();
-    const rd: RedesignSummary = (await aiApp.inject({ method: 'GET', url: `/api/redesigns/${red.json().id}` })).json();
-    expect(rd.status).toBe('done');
-    expect(rd.css).toContain('letter-spacing');
-    expect(rd.css).not.toContain('evil');
-    expect(rd.changes.filter((c) => c.source === 'ai').map((c) => c.title)).toEqual(['Título refinado']);
-    expect(rd.note).toMatch(/inseguras/);
   }, 120_000);
 });

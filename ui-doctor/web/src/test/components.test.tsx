@@ -60,7 +60,7 @@ describe('IssueList', () => {
       occurrences: 1,
       fixable: true,
     },
-    { id: 'v', ruleId: 'v', source: 'ai', category: 'visual', severity: 'low', title: 'Título fraco', description: '', recommendation: '', evidence: [], occurrences: 1, fixable: false },
+    { id: 'v', ruleId: 'v', source: 'vision', category: 'visual', severity: 'low', title: 'Título fraco', description: '', recommendation: '', evidence: [], occurrences: 1, fixable: false },
   ];
 
   it('filtra por categoria e mostra evidências medidas ao selecionar', async () => {
@@ -73,6 +73,13 @@ describe('IssueList', () => {
     rerender(<IssueList issues={issues} selectedId="a11y.contrast" onSelect={onSelect} onStatus={vi.fn()} />);
     expect(screen.getByText('2.1:1')).toBeInTheDocument();
     expect(screen.getByText('p.muted')).toBeInTheDocument();
+  });
+
+  it('mostra a origem por visão e a confirmação independente', () => {
+    const corroborated = { ...issues[0]!, corroboration: ['OCR', 'Imagem'] };
+    render(<IssueList issues={[corroborated, issues[1]!]} selectedId={null} onSelect={vi.fn()} onStatus={vi.fn()} />);
+    expect(screen.getByText(/Confirmado por OCR \+ Imagem/)).toBeInTheDocument();
+    expect(screen.getByText('Visão')).toBeInTheDocument();
   });
 
   it('marca como corrigido', async () => {

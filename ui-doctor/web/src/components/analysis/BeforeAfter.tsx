@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import { ArrowRight, Check, ChevronDown, ClipboardCopy, Columns2, Sparkles, SplitSquareHorizontal, Wand2 } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, ClipboardCopy, Columns2, SplitSquareHorizontal, Wand2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { AnalysisDetail, Capture, RedesignChange, RedesignMode, RedesignSummary } from '@shared/types';
 import { api, ApiError, fileUrl } from '../../lib/api';
@@ -174,7 +174,7 @@ function RedesignResult({ analysisId, redesign }: { analysisId: string; redesign
           {groupChanges(redesign.changes).map(([title, items], gi) => (
             <details key={title} open={gi === 0} className="group">
               <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 hover:bg-surface-2/60 [&::-webkit-details-marker]:hidden">
-                <span className="text-faint">{items[0]!.source === 'ai' ? <Sparkles size={15} className="text-inspect" /> : <Wand2 size={15} />}</span>
+                <span className="text-faint"><Wand2 size={15} /></span>
                 <span className="flex-1 text-sm font-medium">{title}</span>
                 <span className="tabular rounded bg-surface-2 px-1.5 text-xs text-muted">{items.length}</span>
                 <ChevronDown size={15} className="text-faint transition-transform group-open:rotate-180" />
@@ -197,7 +197,7 @@ function RedesignResult({ analysisId, redesign }: { analysisId: string; redesign
   );
 }
 
-export function BeforeAfter({ analysis, aiEnabled, onCreated }: { analysis: AnalysisDetail; aiEnabled: boolean; onCreated: () => void }) {
+export function BeforeAfter({ analysis, onCreated }: { analysis: AnalysisDetail; onCreated: () => void }) {
   const latest = analysis.redesigns[0] ?? null;
   const [mode, setMode] = useState<RedesignMode>('preserve');
   const [starting, setStarting] = useState(false);
@@ -250,7 +250,7 @@ export function BeforeAfter({ analysis, aiEnabled, onCreated }: { analysis: Anal
               {(
                 [
                   ['preserve', 'Preservar identidade', 'Corrige contraste, toque, overflow e legibilidade mantendo cores, fontes e estrutura.', false],
-                  ['full', 'Reformulação completa', aiEnabled ? 'A IA propõe um novo visual mantendo conteúdo e finalidade.' : 'Requer IA configurada no servidor.', !aiEnabled],
+                  ['full', 'Harmonização completa', 'Além das correções, unifica variantes de componentes, cores quase iguais e famílias tipográficas excedentes.', false],
                 ] as const
               ).map(([key, title, desc, disabled]) => (
                 <button
@@ -292,7 +292,7 @@ export function BeforeAfter({ analysis, aiEnabled, onCreated }: { analysis: Anal
       {redesign?.status === 'done' && (
         <div>
           <p className="mb-4 text-xs text-muted">
-            Proposta {redesign.mode === 'full' ? 'de reformulação completa' : 'preservando a identidade'} gerada {relativeTime(redesign.createdAt)}.
+            Proposta {redesign.mode === 'full' ? 'de harmonização completa' : 'preservando a identidade'} gerada {relativeTime(redesign.createdAt)}.
           </p>
           <RedesignResult analysisId={analysis.id} redesign={redesign} />
         </div>

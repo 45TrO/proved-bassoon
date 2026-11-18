@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { validateFindings, type AiFinding } from '../src/ai/claude.js';
 import { contrastRatio, deltaE2000, fixContrast, parseColor, rgbToLab, toHex } from '../src/analysis/color.js';
 import { computeScores, recurrenceFactor } from '../src/analysis/scoring.js';
 import type { Snapshot, SnapEl } from '../src/capture/snapshot.js';
@@ -103,37 +102,6 @@ const snap = (elements: SnapEl[]): Snapshot => ({
   metaViewport: 'width=device-width', docWidth: 1440, docHeight: 2000, clientWidth: 1440, elements,
   truncated: false, forms: [], landmarks: { nav: 1, main: 1, header: 1, footer: 1 }, navLinksVisible: 3,
   navToggle: false, navOverflow: false, duplicateIds: [], skipLink: true, pageBg: 'rgb(255, 255, 255)',
-});
-
-describe('validação de achados da IA', () => {
-  const images = [{ viewport: 'desktop' as const, file: 'd.jpg', width: 1440, height: 1800, mediaType: 'image/jpeg' as const }];
-  const snapshots = { desktop: snap([baseEl({ selector: 'main > h1', x: 20, y: 30, w: 400, h: 60, text: 'Título' })]) };
-  const finding = (over: Partial<AiFinding>): AiFinding => ({
-    category: 'visual', severity: 'medium', title: 't', description: 'd', recommendation: 'r', viewport: 'desktop',
-    selector: null, region: null, observation: 'observado', ...over,
-  });
-
-  it('aceita seletor real e usa o retângulo medido (não o da IA)', () => {
-    const { issues, rejected } = validateFindings([finding({ selector: 'main > h1', region: { x: 0, y: 0, width: 5000, height: 5000 } })], { images, snapshots });
-    expect(rejected).toBe(0);
-    expect(issues[0]!.evidence[0]!.rect).toEqual({ x: 20, y: 30, width: 400, height: 60 });
-    expect(issues[0]!.source).toBe('ai');
-  });
-
-  it('descarta seletores inventados, regiões fora da imagem e achados sem observação', () => {
-    const { issues, rejected } = validateFindings(
-      [
-        finding({ selector: '.nao-existe' }),
-        finding({ region: { x: 1300, y: 10, width: 400, height: 50 } }),
-        finding({ region: { x: 10, y: 10, width: 100, height: 50 }, observation: '  ' }),
-        finding({ viewport: 'mobile', region: { x: 10, y: 10, width: 100, height: 50 } }),
-        finding({ region: { x: 10, y: 10, width: 100, height: 50 } }),
-      ],
-      { images, snapshots },
-    );
-    expect(rejected).toBe(4);
-    expect(issues).toHaveLength(1);
-  });
 });
 
 describe('correções determinísticas', () => {

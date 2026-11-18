@@ -174,7 +174,7 @@ export function AnalyzeForm() {
         {shownError ??
           (mode === 'url'
             ? 'A página é aberta em um navegador isolado e capturada em 1440, 834 e 390 px de largura.'
-            : 'Sem acesso ao código da página, a análise de imagens se apoia na paleta e na revisão por IA.')}
+            : 'A captura é lida por OCR e processamento de imagem: contraste, texto, botões, menu e paleta.')}
       </p>
     </div>
   );

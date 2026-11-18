@@ -11,7 +11,8 @@ import type { AppConfig } from './config.js';
 import { openDatabase } from './db/database.js';
 import { Repository } from './db/repository.js';
 import type { HealthInfo } from './domain/types.js';
-import { AnalysisService, ServiceError, type AiProvider } from './services/analysisService.js';
+import { AnalysisService, ServiceError, type VisionRunner } from './services/analysisService.js';
+import { OCR_LANGUAGES, ocrReady } from './vision/ocr.js';
 
 export const VERSION = '1.0.0';
 const MAX_UPLOAD = 10 * 1024 * 1024;
@@ -33,11 +34,12 @@ const FileParams = z.object({ id: z.string().regex(UUID), file: z.string().regex
 
 export interface BuildOptions {
   config: AppConfig;
-  ai?: AiProvider | null;
+  /** Substitui o pipeline de visão (apenas para testes). */
+  vision?: VisionRunner;
   logger?: boolean;
 }
 
-export async function buildApp({ config, ai, logger = true }: BuildOptions) {
+export async function buildApp({ config, vision, logger = true }: BuildOptions) {
   const app: FastifyInstance = Fastify({
     logger: logger ? { level: 'info', redact: ['req.headers.authorization', 'req.headers.cookie'] } : false,
     bodyLimit: 64 * 1024,
@@ -48,7 +50,7 @@ export async function buildApp({ config, ai, logger = true }: BuildOptions) {
   const repo = new Repository(db);
   const interrupted = repo.failInterrupted();
   if (interrupted) app.log.warn({ interrupted }, 'análises interrompidas marcadas como falha');
-  const service = new AnalysisService(config, repo, ai === undefined ? undefined : ai);
+  const service = new AnalysisService(config, repo, vision);
 
   await app.register(helmet, {
     contentSecurityPolicy: {
@@ -103,7 +105,7 @@ export async function buildApp({ config, ai, logger = true }: BuildOptions) {
   app.get('/api/health', async (): Promise<HealthInfo> => ({
     ok: true,
     version: VERSION,
-    ai: { enabled: service.aiEnabled, model: service.aiEnabled ? config.anthropicModel : null },
+    vision: { ocrLanguages: [...OCR_LANGUAGES], ocrReady: await ocrReady(config.dataDir) },
     browser: true,
   }));
 

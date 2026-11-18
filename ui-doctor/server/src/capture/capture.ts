@@ -26,8 +26,10 @@ export interface CaptureOptions {
   /** CSS injetado após o carregamento (modo "depois" do redesign). */
   injectCss?: string;
   filePrefix?: string;
-  /** Gera recortes do topo (2 dobras) de desktop e mobile para a revisão por IA. */
+  /** Gera recortes do topo (2 dobras) de desktop e mobile para o pipeline de visão. */
   topCrops?: boolean;
+  /** Salva o HTML renderizado do desktop para o parser de DOM. */
+  saveHtml?: boolean;
   onViewport?: (viewport: ViewportName, phase: 'start' | 'done') => void;
   signal?: AbortSignal;
 }
@@ -170,6 +172,10 @@ async function captureViewport(
     }
 
     const snapshot = (await page.evaluate(COLLECTOR_SOURCE)) as Snapshot;
+    if (options.saveHtml && spec.name === 'desktop') {
+      const html = await page.content().catch(() => '');
+      await fs.writeFile(path.join(options.outDir, `${options.filePrefix ?? ''}desktop.html`), html.slice(0, 5_000_000));
+    }
     const height = Math.max(spec.height, Math.min(snapshot.docHeight, config.maxCaptureHeight));
     const file = `${options.filePrefix ?? ''}${spec.name}.jpg`;
     await page.screenshot({

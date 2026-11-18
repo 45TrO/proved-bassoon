@@ -8,8 +8,10 @@
 - Motor de regras com evidência: visual, UX, acessibilidade, responsividade e identidade.
 - Pontuação transparente.
 - Página renderizada em branco **falha com explicação**, em vez de receber nota.
-- IA (Claude) opcional, com descarte de achados sem evidência verificável.
-- Antes e depois com CSS sanitizado, recaptura e re-medição. Em botões, o contraste é corrigido escurecendo o fundo e mantendo o texto e o matiz.
+- **Sem IA:** pipeline de visão computacional com OCR (Tesseract, offline), processamento de imagem (Sobel, XY-cut, componentes conexos, CLAHE), reconhecimento de padrões e parsing de DOM (parse5), supervisionado por um sistema de regras (monitor M1–M4) com rastro auditável. Ver `docs/VISION.md`.
+- Contraste por pixels calibrado contra texto com cores conhecidas (erro médio de −12% para ±3%), com teste de calibração permanente.
+- Imagens importadas agora recebem diagnóstico e nota; a responsividade fica como "não medida".
+- Antes e depois com CSS sanitizado, recaptura e re-medição. Em botões, o contraste é corrigido escurecendo o fundo e mantendo o texto e o matiz. O modo "Harmonização completa" (por regras) unifica variantes de componentes, cores quase iguais e fontes excedentes.
 - SQLite nativo; fila com progresso; API Fastify protegida; entrega do SPA com 404 correto para assets.
 
 ### Frontend (`web/`)
@@ -18,7 +20,7 @@
 - Tema claro e escuro, responsivo até 390 px, foco visível, alvos de toque de 44 px, tokens de cor que passam WCAG AA.
 
 ### Qualidade
-- 75 testes no servidor (incluindo E2E no navegador) e 22 no frontend.
+- 86 testes no servidor (incluindo E2E no navegador e calibração de visão) e 23 no frontend.
 - **Autodiagnóstico:** o UI Doctor analisou as próprias páginas. Os problemas reais encontrados (contraste do token `--faint` e das severidades, alvos de toque pequenos, desalinhamento de grades, overflow transitório de gráfico no mobile) foram corrigidos. Início, Painel e Projetos medem 100.
 - Falsos positivos encontrados e corrigidos (os dois primeiros com teste de regressão; os demais validados re-analisando as páginas):
   - SVG ampliado ou "distorcido";
@@ -28,8 +30,8 @@
   - cores de status com área ínfima contando como dispersão de paleta.
 
 ## Próximos passos sugeridos
-- Testar a revisão por IA com uma `ANTHROPIC_API_KEY` real. Até aqui foi validada com um provedor simulado.
-- Proposta visual para imagens importadas (exige gerar uma recriação da interface).
+- Proposta visual (antes e depois) para imagens importadas.
+- Ampliar o reconhecimento de padrões: botões só com contorno, campos, cards repetidos.
 - Fila externa (ex.: Redis) e armazenamento de capturas em objeto (S3) para escalar horizontalmente.
 - Autenticação e contas multiusuário para uso comercial.
 - Analisar sites públicos reais: o ambiente de desenvolvimento desta sessão bloqueia hosts externos, então a validação foi feita com páginas locais.

@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import { Check, ChevronDown, CircleSlash, RotateCcw, Sparkles, Wand2 } from 'lucide-react';
+import { BadgeCheck, Check, ChevronDown, CircleSlash, RotateCcw, ScanEye, Wand2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORY_LABELS, type Issue, type IssueCategory, type IssueStatus, type Severity } from '@shared/types';
 import { SeverityBadge } from '../ui/SeverityBadge';
@@ -217,9 +217,14 @@ export function IssueList({ issues, selectedId, onSelect, onStatus }: ListProps)
                     <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
                       <span>{CATEGORY_LABELS[issue.category]}</span>
                       {issue.occurrences > 1 && <span className="tabular">{issue.occurrences} ocorrências</span>}
-                      {issue.source === 'ai' && (
-                        <span className="inline-flex items-center gap-1 text-inspect">
-                          <Sparkles size={11} /> IA
+                      {issue.source === 'vision' && (
+                        <span className="inline-flex items-center gap-1 text-inspect" title={`Detectado por: ${(issue.corroboration ?? []).join(', ')}`}>
+                          <ScanEye size={11} /> Visão
+                        </span>
+                      )}
+                      {issue.source === 'rules' && issue.corroboration && issue.corroboration.length > 0 && (
+                        <span className="inline-flex items-center gap-1 text-inspect" title="Confirmado de forma independente pelo pipeline de visão">
+                          <BadgeCheck size={11} /> Confirmado por {issue.corroboration.join(' + ')}
                         </span>
                       )}
                       {issue.fixable && status === 'open' && (

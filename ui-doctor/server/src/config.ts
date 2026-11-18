@@ -23,8 +23,6 @@ export interface AppConfig {
   chromiumExecutable: string | undefined;
   navigationTimeoutMs: number;
   maxCaptureHeight: number;
-  anthropicModel: string;
-  aiEnabled: boolean;
   corsOrigin: string | undefined;
   rateLimitPerMinute: number;
 }
@@ -43,8 +41,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     chromiumExecutable: env.UIDOCTOR_CHROMIUM_PATH || undefined,
     navigationTimeoutMs: int(env.UIDOCTOR_NAV_TIMEOUT_MS, 25_000),
     maxCaptureHeight: int(env.UIDOCTOR_MAX_CAPTURE_HEIGHT, 8000),
-    anthropicModel: env.UIDOCTOR_AI_MODEL || 'claude-opus-5-5',
-    aiEnabled: Boolean(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN) && !bool(env.UIDOCTOR_DISABLE_AI, false),
     corsOrigin: env.UIDOCTOR_CORS_ORIGIN || undefined,
     rateLimitPerMinute: int(env.UIDOCTOR_RATE_LIMIT, 20),
   };

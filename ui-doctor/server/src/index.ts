@@ -1,6 +1,7 @@
 import { buildApp } from './app.js';
 import { closeBrowser } from './capture/browser.js';
 import { loadConfig } from './config.js';
+import { terminateOcr } from './vision/ocr.js';
 
 const config = loadConfig();
 const { app, service } = await buildApp({ config });
@@ -20,6 +21,7 @@ async function shutdown(signal: string) {
   await app.close();
   await Promise.race([service.queue.onIdle(), new Promise((r) => setTimeout(r, 10_000))]);
   await closeBrowser();
+  await terminateOcr();
   process.exit(0);
 }
 process.on('SIGINT', () => void shutdown('SIGINT'));

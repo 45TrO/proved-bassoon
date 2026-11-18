@@ -57,13 +57,13 @@ export const URL_STEPS = [
   { key: 'validate', label: 'Validando endereço e rede' },
   { key: 'capture', label: 'Capturando desktop, tablet e mobile' },
   { key: 'rules', label: 'Analisando layout, cores, tipografia e acessibilidade' },
-  { key: 'ai', label: 'Revisão visual com IA' },
+  { key: 'vision', label: 'Visão computacional: OCR, imagem, padrões e DOM' },
   { key: 'score', label: 'Calculando pontuação e relatório' },
 ];
 
 export const IMAGE_STEPS = [
   { key: 'validate', label: 'Validando imagem' },
   { key: 'pixels', label: 'Extraindo paleta e dimensões' },
-  { key: 'ai', label: 'Revisão visual com IA' },
+  { key: 'vision', label: 'Visão computacional: OCR, imagem, padrões e DOM' },
   { key: 'score', label: 'Calculando pontuação e relatório' },
 ];

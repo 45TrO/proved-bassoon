@@ -40,10 +40,9 @@ describe.skipIf(!hasDist)('E2E: fluxo principal no navegador', () => {
       UIDOCTOR_DATA_DIR: dataDir,
       UIDOCTOR_WEB_DIST: webDist,
       UIDOCTOR_ALLOW_PRIVATE_HOSTS: `127.0.0.1:${servers.sitePort}`,
-      UIDOCTOR_DISABLE_AI: '1',
       UIDOCTOR_RATE_LIMIT: '100',
     });
-    ({ app } = await buildApp({ config, ai: null, logger: false }));
+    ({ app } = await buildApp({ config, logger: false }));
     await app.listen({ port: 0, host: '127.0.0.1' });
     const addr = app.server.address();
     base = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}`;

@@ -19,7 +19,6 @@ beforeAll(async () => {
     UIDOCTOR_DATA_DIR: outDir,
     // Somente o servidor de páginas é liberado; o servidor "secreto" não.
     UIDOCTOR_ALLOW_PRIVATE_HOSTS: `127.0.0.1:${servers.sitePort}`,
-    UIDOCTOR_DISABLE_AI: '1',
   });
 });
 

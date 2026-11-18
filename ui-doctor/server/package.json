@@ -11,14 +11,18 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "1.10.0",
     "@fastify/helmet": "13.2.0",
     "@fastify/multipart": "10.1.9",
     "@fastify/rate-limit": "11.2.2",
     "@fastify/static": "10.1.11",
+    "@tesseract.js-data/eng": "1.0.0",
+    "@tesseract.js-data/por": "1.0.0",
     "fastify": "5.12.8",
     "ipaddr.js": "2.5.0",
+    "parse5": "7.3.0",
     "playwright": "1.63.0",
+    "sharp": "0.35.5",
+    "tesseract.js": "6.0.1",
     "zod": "4.6.7"
   },
   "devDependencies": {

@@ -20,7 +20,8 @@ export const VIEWPORTS: readonly ViewportSpec[] = [
 
 export type IssueCategory = 'visual' | 'ux' | 'accessibility' | 'responsive' | 'identity';
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
-export type IssueSource = 'rules' | 'ai';
+/** rules = regras sobre o DOM medido; vision = pipeline de OCR, imagem, padrões e parsing de DOM. */
+export type IssueSource = 'rules' | 'vision';
 export type IssueStatus = 'open' | 'implemented' | 'dismissed';
 
 export interface Rect {
@@ -57,6 +58,8 @@ export interface Issue {
   /** Correção CSS automática aplicável no modo "antes e depois". */
   fixable: boolean;
   status?: IssueStatus;
+  /** Módulos independentes que confirmaram o mesmo problema (ex.: 'OCR', 'Imagem'). */
+  corroboration?: string[];
 }
 
 export interface Scores {
@@ -115,6 +118,25 @@ export interface Capture {
   documentHeight?: number;
 }
 
+export interface TraceEntry {
+  rule: string;
+  outcome: 'accepted' | 'rejected' | 'corroborated' | 'downgraded';
+  reason: string;
+}
+
+export interface VisionReport {
+  modules: {
+    ocr: { words: number; lines: number; meanConfidence: number | null; durationMs: number; languages: string[] };
+    image: { blocks: number; edgeDensity: number | null; foregroundRatio: number | null; durationMs: number };
+    patterns: { buttons: number; fields: number; navItems: number; componentGroups: number };
+    dom: { parsed: boolean; checks: number };
+  };
+  rules: { evaluated: number; fired: number };
+  findings: { accepted: number; rejected: number; corroborated: number; downgraded: number };
+  trace: TraceEntry[];
+  warnings: string[];
+}
+
 export interface AnalysisMetrics {
   elementsAnalyzed: number;
   interactiveElements: number;
@@ -137,11 +159,13 @@ export interface AnalysisResult {
   /** false quando não há dados suficientes para pontuar (ex.: imagem sem IA). */
   scored: boolean;
   scores: Scores;
+  /** Categorias que não puderam ser medidas nesta origem (não entram na nota). */
+  unmeasured?: IssueCategory[];
   issues: Issue[];
   captures: Capture[];
   identity: IdentityReport;
   metrics: AnalysisMetrics;
-  ai: { enabled: boolean; used: boolean; model?: string; note?: string; rejected?: number };
+  vision: VisionReport;
   page: { title: string; finalUrl: string; lang: string | null };
   limitations: string[];
 }
@@ -235,7 +259,7 @@ export interface DashboardStats {
 export interface HealthInfo {
   ok: boolean;
   version: string;
-  ai: { enabled: boolean; model: string | null };
+  vision: { ocrLanguages: string[]; ocrReady: boolean };
   browser: boolean;
 }
 

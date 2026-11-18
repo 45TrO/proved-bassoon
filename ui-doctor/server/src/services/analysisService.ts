@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { aiAnalyze, aiRedesignCss, validateFindings, type AiAnalysisOutput, type AiContext, type AiImage, type AiRedesignInput } from '../ai/claude.js';
 import { runRules } from '../analysis/engine.js';
 import { identityFromPixels } from '../analysis/identity.js';
 import { computeScores, sortIssues } from '../analysis/scoring.js';
@@ -12,16 +11,14 @@ import type { Repository } from '../db/repository.js';
 import type { AnalysisResult, Issue, IssueCategory, RedesignChange, RedesignMode, ViewportName } from '../domain/types.js';
 import { JobQueue } from '../jobs/queue.js';
 import { IMAGE_STEPS, Progress, URL_STEPS } from '../jobs/progress.js';
-import { sanitizeCss, safeSelector } from '../redesign/cssSanitizer.js';
+import { sanitizeCss } from '../redesign/cssSanitizer.js';
+import { buildHarmonization } from '../redesign/harmonize.js';
 import { buildDeterministicFixes } from '../redesign/fixes.js';
 import { assertSafeUrl, UrlRejectedError } from '../security/urlGuard.js';
+import { emptyVisionReport, runVision, type VisionInput, type VisionOutput } from '../vision/engine.js';
 
-export interface AiProvider {
-  analyze(ctx: AiContext, dir: string): Promise<AiAnalysisOutput>;
-  redesign(input: AiRedesignInput, dir: string): Promise<{ css: string; changes: { title: string; detail: string; selector: string }[] } | null>;
-}
-
-export const claudeProvider: AiProvider = { analyze: aiAnalyze, redesign: aiRedesignCss };
+/** Pipeline de visão injetável (testes podem substituir por um falso). */
+export type VisionRunner = (input: VisionInput) => Promise<VisionOutput>;
 
 type Snapshots = Partial<Record<ViewportName, Snapshot>>;
 
@@ -41,13 +38,9 @@ export class AnalysisService {
   constructor(
     private readonly config: AppConfig,
     private readonly repo: Repository,
-    private readonly ai: AiProvider | null = config.aiEnabled ? claudeProvider : null,
+    private readonly vision: VisionRunner = runVision,
   ) {
     this.queue = new JobQueue(config.concurrency);
-  }
-
-  get aiEnabled(): boolean {
-    return this.ai !== null;
   }
 
   analysisDir(id: string): string {
@@ -85,6 +78,7 @@ export class AnalysisService {
         outDir: dir,
         config: this.config,
         topCrops: true,
+        saveHtml: true,
         onViewport: (vp, phase) => {
           if (phase === 'start') {
             progress.detail('capture', `Renderizando ${vp}`);
@@ -122,25 +116,26 @@ export class AnalysisService {
       for (const e of rules.errors) limitations.push(`Regra com falha: ${e}`);
       if (capture.jsErrors) limitations.push(`A página registrou ${capture.jsErrors} erro(s) de JavaScript durante a captura; partes da interface podem não ter sido renderizadas.`);
 
+      progress.start('vision', 'OCR, processamento de imagem, padrões e parsing de DOM');
+      save('analyzing');
       let issues: Issue[] = rules.issues;
-      const aiInfo: AnalysisResult['ai'] = { enabled: this.aiEnabled, used: false };
-      if (this.ai) {
-        progress.start('ai', 'Enviando capturas para revisão');
-        save('analyzing');
-        try {
-          const images: AiImage[] = capture.topCrops.map((t) => ({ ...t, mediaType: 'image/jpeg' }));
-          const out = await this.ai.analyze({ model: this.config.anthropicModel, images, snapshots, ruleIssues: rules.issues, pageTitle: capture.title, url }, dir);
-          const validated = validateFindings(out.findings, { images, snapshots });
-          issues = sortIssues([...issues, ...validated.issues]);
-          Object.assign(aiInfo, { used: true, model: out.model, rejected: validated.rejected });
-          if (out.refused) aiInfo.note = 'O modelo recusou a revisão desta página.';
-          progress.done('ai', `${validated.issues.length} achados aceitos, ${validated.rejected} descartados por falta de evidência`);
-        } catch (err) {
-          aiInfo.note = `Revisão por IA indisponível: ${(err as Error).message}`;
-          progress.skip('ai', 'Falhou — relatório mantém apenas achados das regras');
-        }
-      } else {
-        progress.skip('ai', 'Desativada (configure ANTHROPIC_API_KEY)');
+      let vision = emptyVisionReport();
+      try {
+        const out = await this.vision({
+          source: 'url',
+          dir,
+          dataDir: this.config.dataDir,
+          images: capture.topCrops.map((t) => ({ viewport: t.viewport, file: t.file, fold: snapshots[t.viewport]?.viewport.height })),
+          snapshots,
+          ruleIssues: rules.issues,
+          htmlFile: 'desktop.html',
+        });
+        issues = sortIssues([...rules.issues, ...out.issues]);
+        vision = out.report;
+        progress.done('vision', `${out.report.modules.ocr.words} palavras lidas · ${out.issues.length} achados aceitos · ${out.report.findings.corroborated} confirmações · ${out.report.findings.rejected} rejeitados`);
+      } catch (err) {
+        vision = emptyVisionReport(`Pipeline de visão indisponível: ${(err as Error).message}`);
+        progress.skip('vision', 'Falhou — relatório mantém os achados medidos no DOM');
       }
 
       progress.start('score');
@@ -160,7 +155,7 @@ export class AnalysisService {
           wordsAboveFold: els ? els.elements.filter((e) => e.ownText && e.y < els.viewport.height).reduce((a, e) => a + e.words, 0) : 0,
           durationMs: Date.now() - started,
         },
-        ai: aiInfo,
+        vision,
         page: { title: capture.title, finalUrl: capture.finalUrl, lang: els?.lang ?? null },
         limitations,
       };
@@ -200,47 +195,34 @@ export class AnalysisService {
       const identity = identityFromPixels(stats.colors);
       progress.done('pixels', `${stats.width}×${stats.height}px · ${identity.palette.length} cores dominantes`);
 
-      let issues: Issue[] = [];
+      progress.start('vision', 'OCR, segmentação e reconhecimento de componentes');
+      this.repo.setStatus(id, 'analyzing', progress.snapshot());
+      const out = await this.vision({ source: 'image', dir, dataDir: this.config.dataDir, images: [{ viewport: 'image', file }], snapshots: {}, ruleIssues: [] });
+      const issues = sortIssues(out.issues);
+      progress.done('vision', `${out.report.modules.ocr.words} palavras lidas · ${out.report.modules.patterns.buttons} botões reconhecidos · ${issues.length} achados aceitos`);
+
       const limitations = [
-        'Imagem importada não tem DOM: regras estruturais (contraste por elemento, formulários, responsividade, semântica) não podem ser medidas.',
+        'Imagem importada não tem DOM: semântica, formulários e acessibilidade por código não podem ser verificados. Responsividade não é medida (uma única resolução).',
+        ...out.report.warnings,
       ];
-      const aiInfo: AnalysisResult['ai'] = { enabled: this.aiEnabled, used: false };
-      let scored = false;
-      const images: AiImage[] = [{ viewport: 'image', file, width: stats.width, height: stats.height, mediaType: mime }];
-      if (this.ai) {
-        progress.start('ai', 'Enviando imagem para revisão');
-        this.repo.setStatus(id, 'analyzing', progress.snapshot());
-        try {
-          const out = await this.ai.analyze({ model: this.config.anthropicModel, images, snapshots: {}, ruleIssues: [], pageTitle: file, url: null }, dir);
-          const validated = validateFindings(out.findings, { images, snapshots: {} });
-          issues = sortIssues(validated.issues);
-          Object.assign(aiInfo, { used: true, model: out.model, rejected: validated.rejected });
-          scored = !out.refused;
-          if (out.refused) aiInfo.note = 'O modelo recusou a revisão desta imagem.';
-          progress.done('ai', `${validated.issues.length} achados aceitos, ${validated.rejected} descartados por falta de evidência`);
-        } catch (err) {
-          aiInfo.note = `Revisão por IA indisponível: ${(err as Error).message}`;
-          progress.skip('ai', 'Falhou');
-        }
-      } else {
-        progress.skip('ai', 'Desativada (configure ANTHROPIC_API_KEY)');
-        limitations.push('Sem IA configurada, a análise de imagens se limita a paleta, dimensões e sugestões de cor. Nenhuma pontuação foi atribuída.');
-      }
+      const readable = out.report.modules.ocr.words >= 5;
+      if (!readable) limitations.push('O OCR leu pouco texto nesta imagem; a nota considera apenas o que pôde ser medido nos pixels.');
 
       progress.start('score');
-      const measured: IssueCategory[] = ['visual', 'ux', 'accessibility', 'responsive', 'identity'];
+      const measured: IssueCategory[] = ['visual', 'ux', 'accessibility', 'identity'];
       const result: AnalysisResult = {
-        scored,
+        scored: true,
         scores: computeScores(issues, measured),
+        unmeasured: ['responsive'],
         issues,
         captures: [{ viewport: 'image', width: stats.width, height: stats.height, fullHeight: stats.height, file }],
         identity,
-        metrics: { elementsAnalyzed: 0, interactiveElements: 0, forms: 0, images: 1, wordsAboveFold: 0, durationMs: Date.now() - started },
-        ai: aiInfo,
+        metrics: { elementsAnalyzed: out.report.modules.image.blocks, interactiveElements: out.report.modules.patterns.buttons, forms: 0, images: 1, wordsAboveFold: out.report.modules.ocr.words, durationMs: Date.now() - started },
+        vision: out.report,
         page: { title: file, finalUrl: '', lang: null },
         limitations,
       };
-      progress.done('score', scored ? `Nota geral ${result.scores.overall}` : 'Sem pontuação (dados insuficientes)');
+      progress.done('score', `Nota geral ${result.scores.overall}`);
       this.repo.completeAnalysis(id, result, progress.snapshot(), file);
     } catch (err) {
       const message = `Não foi possível processar a imagem: ${(err as Error).message}`;
@@ -257,9 +239,6 @@ export class AnalysisService {
     if (analysis.sourceType !== 'url') {
       throw new ServiceError('A proposta visual com recaptura está disponível para análises por URL.', 422, 'unsupported_source');
     }
-    if (mode === 'full' && !this.ai) {
-      throw new ServiceError('A reformulação completa exige IA. Configure ANTHROPIC_API_KEY no servidor.', 422, 'ai_required');
-    }
     const id = this.repo.createRedesign(analysisId, mode);
     this.queue.push(() => this.runRedesign(id, analysisId, mode));
     return id;
@@ -273,36 +252,20 @@ export class AnalysisService {
       this.repo.updateRedesign(id, 'running');
       const snapshots = JSON.parse(await fs.readFile(path.join(dir, 'snapshots.json'), 'utf8')) as Snapshots;
       const ruleIssues = result.issues.filter((i) => i.source === 'rules' && i.status !== 'dismissed');
-      const fixes = mode === 'preserve' ? buildDeterministicFixes(ruleIssues, snapshots) : { css: '', changes: [] as RedesignChange[] };
+      // Ambos os modos aplicam as correções; a reformulação completa também harmoniza o sistema visual.
+      const fixes = buildDeterministicFixes(ruleIssues, snapshots);
       const changes: RedesignChange[] = [...fixes.changes];
       let css = fixes.css;
       let note: string | null = null;
-
-      if (this.ai) {
-        try {
-          const images: AiImage[] = [];
-          for (const vp of ['desktop', 'mobile'] as const) {
-            const file = `${vp}-top.jpg`;
-            const cap = result.captures.find((c) => c.viewport === vp);
-            if (cap) images.push({ viewport: vp, file, width: cap.width, height: Math.min(cap.fullHeight, cap.height * 2), mediaType: 'image/jpeg' });
-          }
-          const proposal = await this.ai.redesign({ model: this.config.anthropicModel, mode, images, snapshots, issues: ruleIssues, baseCss: css }, dir);
-          if (proposal) {
-            const clean = sanitizeCss(proposal.css);
-            const known = new Set(Object.values(snapshots).flatMap((s) => s?.elements.map((e) => e.selector) ?? []));
-            const generic = /^(html|body|main|header|footer|nav|section|article|h[1-6]|p|a|button|input|select|textarea|ul|ol|li|img|label|form)([\s>+~:.[][\w\s>+~:.[\]="'-]*)?$/i;
-            for (const c of proposal.changes) {
-              if (!safeSelector(c.selector) || !(known.has(c.selector) || generic.test(c.selector))) continue;
-              changes.push({ id: `ai-${changes.length}`, title: c.title, detail: c.detail, selector: c.selector, css: '', source: 'ai' });
-            }
-            css = `${css}\n\n/* Proposta da IA (${mode === 'full' ? 'reformulação completa' : 'refinamento'}) */\n${clean.css}`;
-            if (clean.removed) note = `${clean.removed} construções inseguras foram removidas do CSS gerado.`;
-          }
-        } catch (err) {
-          if (mode === 'full') throw err;
-          note = `Proposta da IA indisponível (${(err as Error).message}); aplicadas apenas correções automáticas.`;
-        }
+      if (mode === 'full') {
+        const harmony = buildHarmonization(snapshots);
+        changes.push(...harmony.changes);
+        if (harmony.css) css = `${css}\n\n${harmony.css}`;
+        if (harmony.changes.length === 0) note = 'Nenhuma variante acidental, cor quase duplicada ou família tipográfica excedente foi encontrada para harmonizar.';
       }
+      const clean = sanitizeCss(css);
+      css = clean.css;
+      if (clean.removed) note = `${clean.removed} construções inseguras foram removidas do CSS.`;
       if (changes.length === 0) {
         note = note ?? 'Nenhuma correção automática se aplica aos problemas desta análise; as recomendações exigem mudanças de conteúdo ou estrutura.';
       }

@@ -6,9 +6,9 @@ Plataforma de diagnóstico de interfaces. Ela abre um site em um navegador isola
 - **Notas transparentes**: UI, UX, geral e por categoria, com fórmula documentada (`server/src/analysis/scoring.ts`).
 - **Identidade visual**: paleta ponderada por área, tipografia, pares de contraste WCAG e paletas recomendadas.
 - **Antes e depois**: aplica correções na página real, recaptura e **mede de novo**. A melhoria exibida é medida, não estimada.
-- **IA opcional (Claude)**: complementa as regras com revisão visual. Achados sem elemento ou região verificável são descartados.
+- **Visão computacional sem IA**: OCR (Tesseract, offline), processamento de imagem (Sobel, XY-cut, componentes conexos, CLAHE), reconhecimento de padrões e parsing de DOM, supervisionados por um sistema de regras que confronta cada achado com o DOM e registra um rastro auditável. Detalhes em [`docs/VISION.md`](docs/VISION.md).
 - **Painel, projetos, favoritos e histórico**, com problemas marcados como corrigidos.
-- **Importação de captura de tela**: paleta por pixels; revisão de UX apenas com IA, sem nota inventada.
+- **Importação de captura de tela**: OCR e processamento de imagem medem contraste, texto, botões e menu, e atribuem nota (responsividade fica como não medida).
 
 ## Requisitos
 
@@ -30,7 +30,7 @@ npm run build
 npm start                   # http://127.0.0.1:8787
 ```
 
-As variáveis de ambiente estão documentadas em `.env.example`. Para ativar a IA, defina `ANTHROPIC_API_KEY`.
+As variáveis de ambiente estão documentadas em `.env.example`. O OCR funciona offline: os dados de idioma (português e inglês) vêm dos pacotes `@tesseract.js-data/*` e são copiados para `UIDOCTOR_DATA_DIR/tessdata` no primeiro uso.
 
 ## Testes
 
@@ -48,11 +48,11 @@ Detalhes em [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ```
 web/      React 19 + React Router 7 + Tailwind v4 (componentes próprios, gráficos SVG)
-server/   Fastify + Playwright + SQLite (node:sqlite) + Zod + SDK da Anthropic
+server/   Fastify + Playwright + SQLite (node:sqlite) + Zod + sharp + Tesseract + parse5
   security/   validação de URL e proxy de saída anti-SSRF
   capture/    navegador isolado, coletor de DOM, análise de imagens
   analysis/   regras, identidade visual, pontuação
-  ai/         integração com Claude e validação de evidências
+  vision/     OCR, processamento de imagem, padrões, parsing de DOM, regras e monitor
   redesign/   CSS de correção e sanitizador
   services/   orquestração de análises e propostas (fila em processo)
 ```
@@ -64,7 +64,7 @@ server/   Fastify + Playwright + SQLite (node:sqlite) + Zod + SDK da Anthropic
 | SSRF (rede interna, metadados de nuvem) | Validação de esquema, credenciais, portas (80/443/8080/8443), nomes internos e IPs em qualquer notação. O DNS é resolvido e **todos** os endereços precisam ser públicos. |
 | Redirects, sub-recursos, fetch, WebSocket | Todo o tráfego do Chromium passa por um proxy de saída que revalida cada conexão e conecta no IP já validado (impede DNS rebinding). QUIC e WebRTC UDP desativados. |
 | Conteúdo não confiável | Contexto efêmero por análise: sem service workers, downloads, permissões nem pop-ups, com limites de tempo, de requisições e de bytes. O frontend só exibe imagens, nunca HTML capturado. |
-| CSS gerado (IA/regras) | Sanitizador remove `@import`, `url()`, `expression`, `javascript:`, escapes e comentários que escondem construções. |
+| CSS gerado (regras e harmonização) | Sanitizador remove `@import`, `url()`, `expression`, `javascript:`, escapes e comentários que escondem construções. |
 | Upload | Tipo verificado por *magic bytes*, até 10 MB; imagem processada num contexto do Chromium **offline**. |
 | API | Validação Zod, rate limit nas criações, helmet com CSP restrita, arquivos servidos por nome validado (sem path traversal). |
 
@@ -74,6 +74,7 @@ server/   Fastify + Playwright + SQLite (node:sqlite) + Zod + SDK da Anthropic
 
 - Páginas que exigem login, ou que só renderizam após interação, são capturadas como o visitante anônimo as vê. Uma página sem conteúdo visível falha com explicação em vez de receber nota.
 - A captura é limitada a 8.000 px de altura e 2.500 elementos visíveis por resolução. Isso aparece no relatório quando acontece.
-- Sem `ANTHROPIC_API_KEY`, imagens importadas recebem só paleta e sugestões, sem nota.
+- Imagens importadas não têm DOM: semântica e acessibilidade por código não são verificadas, e a responsividade não é medida.
+- Limitações do OCR e do reconhecimento de botões estão em `docs/VISION.md`.
 - A fila é em processo: para escalar horizontalmente, troque `jobs/queue.ts` por uma fila externa.
 - As vulnerabilidades apontadas por `npm audit` estão em ferramentas de desenvolvimento (Vite e Vitest), que não fazem parte do build de produção.

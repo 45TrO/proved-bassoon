@@ -1,4 +1,4 @@
-import { ExternalLink, Info, RefreshCw, Sparkles, Star, Trash2 } from 'lucide-react';
+import { ExternalLink, Info, RefreshCw, Star, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import type { AnalysisDetail, Capture, Issue, IssueStatus } from '@shared/types';
@@ -9,6 +9,7 @@ import { IssueList } from '../components/analysis/IssueList';
 import { ProgressView } from '../components/analysis/ProgressView';
 import { ResponsivePanel } from '../components/analysis/ResponsivePanel';
 import { ScoreSummary } from '../components/analysis/ScoreSummary';
+import { VisionPanel } from '../components/analysis/VisionPanel';
 import { Button } from '../components/ui/Button';
 import { ConfirmButton } from '../components/ui/ConfirmButton';
 import { EmptyState, ErrorNotice, Skeleton } from '../components/ui/Empty';
@@ -89,7 +90,7 @@ function Diagnosis({ a, onStatus }: { a: AnalysisDetail; onStatus: (issue: Issue
 
   return (
     <div className="space-y-8">
-      <ScoreSummary scores={result.scores} scored={result.scored} />
+      <ScoreSummary scores={result.scores} scored={result.scored} unmeasured={result.unmeasured ?? []} />
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <div className="min-w-0 xl:sticky xl:top-4">
           {result.captures.length > 1 && (
@@ -121,26 +122,16 @@ function Diagnosis({ a, onStatus }: { a: AnalysisDetail; onStatus: (issue: Issue
 function Notes({ a }: { a: AnalysisDetail }) {
   const r = a.result!;
   return (
-    <section className="grid gap-4 md:grid-cols-2">
-      <div className="rounded-xl border border-line bg-surface p-4">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <Sparkles size={14} className={r.ai.used ? 'text-inspect' : 'text-faint'} /> Revisão por IA
-        </h3>
-        <p className="mt-1.5 text-sm text-muted">
-          {r.ai.used
-            ? `Feita com ${r.ai.model}. ${r.ai.rejected ? `${pluralize(r.ai.rejected, "achado foi descartado", "achados foram descartados")}: sem elemento ou região real como evidência.` : 'Todos os achados apontaram evidência válida.'}`
-            : r.ai.enabled
-              ? 'Não foi possível concluir a revisão por IA nesta análise.'
-              : 'Desativada neste servidor. Todos os problemas vieram das regras medidas na página.'}
-          {r.ai.note && ` ${r.ai.note}`}
-        </p>
-      </div>
+    <section className="space-y-4">
+      <VisionPanel report={r.vision} />
       <div className="rounded-xl border border-line bg-surface p-4">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Info size={14} className="text-faint" /> Cobertura da análise
         </h3>
         <p className="tabular mt-1.5 text-sm text-muted">
-          {r.metrics.elementsAnalyzed.toLocaleString('pt-BR')} elementos medidos, {r.metrics.interactiveElements} interativos, {pluralize(r.metrics.forms, 'formulário', 'formulários')}, em {(r.metrics.durationMs / 1000).toFixed(1)} s.
+          {a.sourceType === 'image'
+            ? `${pluralize(r.vision.modules.ocr.words, 'palavra lida', 'palavras lidas')}, ${pluralize(r.vision.modules.image.blocks, 'bloco segmentado', 'blocos segmentados')}, ${pluralize(r.vision.modules.patterns.buttons, 'botão reconhecido', 'botões reconhecidos')}, em ${(r.metrics.durationMs / 1000).toFixed(1)} s.`
+            : `${r.metrics.elementsAnalyzed.toLocaleString('pt-BR')} elementos medidos, ${r.metrics.interactiveElements} interativos, ${pluralize(r.metrics.forms, 'formulário', 'formulários')}, em ${(r.metrics.durationMs / 1000).toFixed(1)} s.`}
         </p>
         {r.limitations.length > 0 && (
           <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted">
@@ -160,7 +151,6 @@ export function AnalysisPage() {
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const [rerunning, setRerunning] = useState(false);
-  const health = useAsync(() => api.health(), []);
   const q = useAsync(() => api.analysis(id), [id], { interval: 1200, shouldPoll: (a) => RUNNING.has(a.status) });
   const a = q.data;
   useDocumentTitle(a ? (a.sourceType === 'url' ? hostOf(a.target) : a.projectName) : 'Análise');
@@ -288,7 +278,7 @@ export function AnalysisPage() {
             onInspect={(_vp, issueId) => setParams({ aba: 'diagnostico', problema: issueId }, { replace: true })}
           />
         )}
-        {tab === 'antes-depois' && <BeforeAfter analysis={a} aiEnabled={Boolean(health.data?.ai.enabled)} onCreated={q.reload} />}
+        {tab === 'antes-depois' && <BeforeAfter analysis={a} onCreated={q.reload} />}
       </div>
     </div>
   );

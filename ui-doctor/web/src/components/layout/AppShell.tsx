@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import { FolderKanban, LayoutDashboard, Menu, Moon, ScanSearch, Sparkles, Sun, X } from 'lucide-react';
+import { FolderKanban, LayoutDashboard, Menu, Moon, ScanEye, ScanSearch, Sun, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router';
 import { api } from '../../lib/api';
@@ -16,7 +16,7 @@ const NAV = [
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const [theme, toggle] = useTheme();
   const health = useAsync(() => api.health(), []);
-  const ai = health.data?.ai;
+  const vision = health.data?.vision;
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-14 items-center gap-2.5 px-4">
@@ -44,9 +44,13 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
       <div className="mt-auto space-y-1 p-2">
         <div className="flex items-start gap-2.5 rounded-lg px-2.5 py-2 text-xs text-muted">
-          <Sparkles size={14} className={clsx('mt-px shrink-0', ai?.enabled ? 'text-inspect' : 'text-faint')} />
+          <ScanEye size={14} className={clsx('mt-px shrink-0', vision?.ocrReady ? 'text-inspect' : 'text-faint')} />
           <span>
-            {health.loading ? 'Verificando IA…' : ai?.enabled ? 'Revisão por IA ativa' : 'IA desativada: análise apenas por regras medidas'}
+            {health.loading
+              ? 'Verificando módulos…'
+              : vision?.ocrReady
+                ? `Visão computacional offline · OCR ${vision.ocrLanguages.join(' + ')}`
+                : 'OCR indisponível: análise só pelo DOM'}
           </span>
         </div>
         <button onClick={toggle} className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-ink">

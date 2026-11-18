@@ -16,7 +16,8 @@
                                                        │     ▼                                         │
                                                        │   rules (motor determinístico de regras)      │
                                                        │     ▼                                         │
-                                                       │   ai (Claude, opcional, validado por evidência)│
+                                                       │   vision (OCR · imagem · padrões · DOM)       │
+                                                       │     ▼ supervisionado por sistema de regras    │
                                                        │     ▼                                         │
                                                        │   scoring ─▶ SQLite (node:sqlite) + PNGs      │
                                                        │                                               │
@@ -33,9 +34,9 @@ Todo problema (`Issue`) carrega um objeto `evidence` com:
 - `selector` CSS do elemento real e `rect` (coordenadas na captura de tela);
 - `measured`: os valores numéricos que dispararam a regra (ex.: contraste 2.8:1, alvo de toque 28×18 px, overflow de 112 px).
 
-A interface desenha o `rect` sobre o screenshot. Achados da IA só são aceitos se apontarem
-um seletor que existe no inventário coletado ou uma região dentro dos limites da captura;
-o restante é descartado (`ai/validate.ts`).
+A interface desenha o `rect` sobre o screenshot. Achados do pipeline de visão só são aceitos se apontarem
+uma região dentro da captura, com confiança mínima, e são confrontados com as medições do DOM
+pelo monitor (`vision/monitor.ts`); o restante é rejeitado e registrado no rastro.
 
 ## Módulos do servidor
 
@@ -48,7 +49,7 @@ o restante é descartado (`ai/validate.ts`).
 | `analysis/rules/*` | Regras puras `(snapshot) → Issue[]`: visual, UX, acessibilidade, responsividade e identidade visual. |
 | `analysis/scoring.ts` | Pontuação UI/UX/geral com fórmula transparente: peso por severidade, com retorno decrescente por regra. |
 | `analysis/identity.ts` | Extração de paleta ponderada por área (agrupamento em CIELAB / ΔE2000), tipografia e paletas recomendadas com contraste verificado. |
-| `ai/*` | Integração com Claude (visão + saída estruturada Zod). Opcional, ligada por `ANTHROPIC_API_KEY`. |
+| `vision/*` | OCR (Tesseract offline), processamento de imagem (sharp: Sobel, XY-cut, componentes conexos, CLAHE), reconhecimento de padrões, parsing de DOM (parse5), regras e monitor. Ver [`VISION.md`](VISION.md). |
 | `redesign/*` | Gera CSS de correção a partir dos problemas, injeta na página real, captura o "depois" e **re-executa as regras** para medir a melhoria. |
 | `jobs/queue.ts` | Fila em processo com concorrência configurável, progresso por etapas e recuperação após reinício. |
 | `db/*` | SQLite via `node:sqlite` (sem dependências nativas). |
@@ -58,22 +59,20 @@ o restante é descartado (`ai/validate.ts`).
 1. `POST /api/analyses { url }`: valida com Zod e passa pelo `urlGuard` (falha rápida).
 2. O job entra na fila; o status é `queued → capturing → analyzing → scoring → done | failed`.
 3. Para cada viewport: navega pelo proxy seguro, rola a página para carregar conteúdo lazy, captura a página inteira (limitada a 8000 px de altura) e roda o collector.
-4. As regras rodam sobre os snapshots. A IA, se habilitada, recebe screenshots e inventário e retorna achados que são validados.
+4. As regras rodam sobre os snapshots. O pipeline de visão lê as capturas e o HTML renderizado, propõe achados e o monitor os aceita, rejeita ou registra como confirmação dos achados do DOM.
 5. A pontuação é calculada e o resultado é persistido. A interface acompanha por polling.
 
 ## Importação de imagem
 
-Upload (PNG/JPEG/WebP, ≤ 10 MB, tipo verificado por *magic bytes*). O servidor extrai a paleta e
-as dimensões a partir dos pixels, renderizando a imagem em um contexto do Chromium **sem rede e sem JS**.
-Sem DOM, regras estruturais não se aplicam: a análise de UX/visual depende da IA e a
-interface informa isso explicitamente, sem inventar resultados.
+Upload (PNG/JPEG/WebP, ≤ 10 MB, tipo verificado por *magic bytes*). A paleta vem dos pixels
+(contexto do Chromium **sem rede**), e o pipeline de visão mede contraste, tamanho de texto, botões,
+menu, hierarquia e densidade. Sem DOM, a responsividade é marcada como não medida e fica fora da nota.
 
 ## Antes e depois
 
 - **Preservar identidade** (padrão): correções determinísticas (contraste ajustado mantendo o matiz,
-  alvos de toque, overflow, legibilidade, tamanho de texto no mobile, foco visível),
-  com IA opcional para refinamentos sob as mesmas restrições.
-- **Reformulação completa**: exige IA e é feita só a pedido do usuário.
+  alvos de toque, overflow, legibilidade, tamanho de texto no mobile, foco visível).
+- **Harmonização completa**: além das correções, unifica variantes acidentais de componentes, cores quase iguais e famílias tipográficas excedentes (regras H1–H3).
 - O CSS gerado passa por um sanitizador (sem `@import`, `url()`, `expression`, `javascript:`, `behavior`).
 - A captura "depois" é a página real com o CSS aplicado, e as regras são reexecutadas para mostrar o delta medido.
 

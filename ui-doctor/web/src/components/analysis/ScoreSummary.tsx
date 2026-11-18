@@ -4,7 +4,7 @@ import { ScoreRing } from '../ui/ScoreRing';
 
 const ORDER: IssueCategory[] = ['visual', 'responsive', 'identity', 'ux', 'accessibility'];
 
-export function ScoreSummary({ scores, scored }: { scores: Scores; scored: boolean }) {
+export function ScoreSummary({ scores, scored, unmeasured = [] }: { scores: Scores; scored: boolean; unmeasured?: IssueCategory[] }) {
   if (!scored) {
     return (
       <div className="rounded-xl border border-line bg-surface p-5">
@@ -36,6 +36,15 @@ export function ScoreSummary({ scores, scored }: { scores: Scores; scored: boole
         <ul className="space-y-2.5">
           {ORDER.map((c) => {
             const v = scores.categories[c];
+            if (unmeasured.includes(c)) {
+              return (
+                <li key={c} className="grid grid-cols-[8.5rem_1fr_2rem] items-center gap-3 text-sm">
+                  <span className="text-muted">{CATEGORY_LABELS[c]}</span>
+                  <span className="text-xs text-faint">não medida nesta origem</span>
+                  <span className="text-right text-faint">—</span>
+                </li>
+              );
+            }
             return (
               <li key={c} className="grid grid-cols-[8.5rem_1fr_2rem] items-center gap-3 text-sm">
                 <span className="text-muted">{CATEGORY_LABELS[c]}</span>
