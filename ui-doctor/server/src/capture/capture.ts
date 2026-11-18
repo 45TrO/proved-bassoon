@@ -26,11 +26,21 @@ export interface CaptureOptions {
   /** CSS injetado após o carregamento (modo "depois" do redesign). */
   injectCss?: string;
   filePrefix?: string;
+  /** Gera recortes do topo (2 dobras) de desktop e mobile para a revisão por IA. */
+  topCrops?: boolean;
   onViewport?: (viewport: ViewportName, phase: 'start' | 'done') => void;
   signal?: AbortSignal;
 }
 
+export interface TopCrop {
+  viewport: ViewportName;
+  file: string;
+  width: number;
+  height: number;
+}
+
 export interface CaptureOutput {
+  topCrops: TopCrop[];
   snapshots: Partial<Record<ViewportName, Snapshot>>;
   captures: Capture[];
   finalUrl: string;
@@ -110,7 +120,7 @@ async function captureViewport(
   spec: ViewportSpec,
   proxyUrl: string,
   blocked: BlockedRequest[],
-): Promise<{ snapshot: Snapshot; capture: Capture; finalUrl: string; title: string }> {
+): Promise<{ snapshot: Snapshot; capture: Capture; finalUrl: string; title: string; topCrop?: TopCrop }> {
   const { config } = options;
   const context = await newIsolatedContext(options, spec, proxyUrl);
   try {
@@ -164,8 +174,24 @@ async function captureViewport(
       caret: 'hide',
       clip: { x: 0, y: 0, width: spec.width, height },
     });
+    let topCrop: TopCrop | undefined;
+    if (options.topCrops && spec.name !== 'tablet') {
+      const cropHeight = Math.min(height, spec.height * 2);
+      const topFile = `${options.filePrefix ?? ''}${spec.name}-top.jpg`;
+      await page.screenshot({
+        path: path.join(options.outDir, topFile),
+        type: 'jpeg',
+        quality: 85,
+        animations: 'disabled',
+        caret: 'hide',
+        clip: { x: 0, y: 0, width: spec.width, height: cropHeight },
+        fullPage: true,
+      });
+      topCrop = { viewport: spec.name, file: topFile, width: spec.width, height: cropHeight };
+    }
     return {
       snapshot,
+      topCrop,
       capture: {
         viewport: spec.name,
         width: spec.width,
@@ -195,6 +221,7 @@ export async function captureUrl(options: CaptureOptions): Promise<CaptureOutput
     title: '',
     blocked: proxy.blocked,
     failedViewports: [],
+    topCrops: [],
   };
   try {
     const viewports = options.viewports ?? VIEWPORTS;
@@ -205,6 +232,7 @@ export async function captureUrl(options: CaptureOptions): Promise<CaptureOutput
         const r = await captureViewport(options, spec, proxy.url, proxy.blocked);
         out.snapshots[spec.name] = r.snapshot;
         out.captures.push(r.capture);
+        if (r.topCrop) out.topCrops.push(r.topCrop);
         if (index === 0) {
           out.finalUrl = r.finalUrl;
           out.title = r.title;

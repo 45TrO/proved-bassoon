@@ -252,3 +252,30 @@ export function analyzeIdentity(snap: Snapshot): { report: IdentityReport; issue
 export function emptyIdentity(): IdentityReport {
   return { palette: [], typography: [], contrastPairs: [], suggestions: [], nearDuplicateColors: [], typeScale: [] };
 }
+
+/** Identidade visual a partir de pixels de uma imagem importada (sem DOM). */
+export function identityFromPixels(colors: { r: number; g: number; b: number; count: number }[]): IdentityReport {
+  const buckets: Bucket[] = [];
+  for (const c of colors) {
+    const rgb = { r: c.r, g: c.g, b: c.b, a: 1 };
+    const lab = rgbToLab(rgb);
+    const existing = buckets.find((b) => deltaE2000(rgbToLab(b.rgb), lab) < 5);
+    if (existing) existing.weight += c.count;
+    else buckets.push({ rgb, hex: toHex(rgb), weight: c.count, roles: new Map([['background', c.count]]) });
+  }
+  buckets.sort((a, b) => b.weight - a.weight);
+  const total = buckets.reduce((a, b) => a + b.weight, 0) || 1;
+  const palette: PaletteColor[] = buckets.slice(0, 10).map((b, idx) => {
+    const hsl = rgbToHsl(b.rgb);
+    const role: PaletteColor['role'] = idx === 0 ? 'background' : hsl.s > 0.35 && hsl.l > 0.15 && hsl.l < 0.85 ? 'accent' : hsl.l < 0.3 ? 'text' : 'background';
+    return { hex: b.hex, share: round2(b.weight / total), role };
+  });
+  return {
+    palette,
+    typography: [],
+    contrastPairs: [],
+    suggestions: suggestPalettes(buckets),
+    nearDuplicateColors: [],
+    typeScale: [],
+  };
+}

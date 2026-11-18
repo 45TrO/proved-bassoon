@@ -62,20 +62,20 @@ export function isPublicAddress(address: string): boolean {
   const range = parsed.range();
   if (range !== 'unicast') return false;
   if (parsed.kind() === 'ipv4') {
-    const octets = (parsed as ipaddr.IPv4).octets;
+    const [a = 0, b = 0, c = 0] = (parsed as ipaddr.IPv4).octets;
     // Faixas não cobertas por ipaddr.js como especiais:
-    if (octets[0] === 0) return false; // "this network"
-    if (octets[0] === 192 && octets[1] === 0 && octets[2] === 0) return false; // IETF protocol assignments
-    if (octets[0] === 192 && octets[1] === 0 && octets[2] === 2) return false; // TEST-NET-1
-    if (octets[0] === 198 && octets[1] === 51 && octets[2] === 100) return false; // TEST-NET-2
-    if (octets[0] === 203 && octets[1] === 0 && octets[2] === 113) return false; // TEST-NET-3
-    if (octets[0] === 198 && (octets[1] === 18 || octets[1] === 19)) return false; // benchmarking
-    if (octets[0] >= 240) return false; // reservado / broadcast
+    if (a === 0) return false; // "this network"
+    if (a === 192 && b === 0 && c === 0) return false; // IETF protocol assignments
+    if (a === 192 && b === 0 && c === 2) return false; // TEST-NET-1
+    if (a === 198 && b === 51 && c === 100) return false; // TEST-NET-2
+    if (a === 203 && b === 0 && c === 113) return false; // TEST-NET-3
+    if (a === 198 && (b === 18 || b === 19)) return false; // benchmarking
+    if (a >= 240) return false; // reservado / broadcast
   } else {
-    const parts = (parsed as ipaddr.IPv6).parts as number[] & { 0: number; 1: number };
+    const [p0 = 0, p1 = 0] = (parsed as ipaddr.IPv6).parts;
     // 64:ff9b::/96 (NAT64) pode embutir IPv4 interno; 2001:db8::/32 documentação.
-    if (parts[0] === 0x64 && parts[1] === 0xff9b) return false;
-    if (parts[0] === 0x2001 && parts[1] === 0x0db8) return false;
+    if (p0 === 0x64 && p1 === 0xff9b) return false;
+    if (p0 === 0x2001 && p1 === 0x0db8) return false;
   }
   return true;
 }

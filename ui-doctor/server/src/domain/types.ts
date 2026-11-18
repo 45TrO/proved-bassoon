@@ -134,6 +134,8 @@ export interface ProgressStep {
 }
 
 export interface AnalysisResult {
+  /** false quando não há dados suficientes para pontuar (ex.: imagem sem IA). */
+  scored: boolean;
   scores: Scores;
   issues: Issue[];
   captures: Capture[];
