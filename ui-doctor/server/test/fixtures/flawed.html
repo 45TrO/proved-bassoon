@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Loja Flawed</title>
+  <style>
+    body { margin: 0; font-family: Georgia, serif; background: #ffffff; color: #222; }
+    .nav { display: flex; gap: 6px; padding: 10px 18px; background: #f4f4f4; }
+    .nav a { font-size: 11px; color: #555; text-decoration: none; padding: 2px; }
+    .hero { padding: 37px 21px; }
+    .hero h2 { font-size: 22px; font-family: Arial; }
+    .hero h4 { font-size: 30px; font-family: 'Courier New'; }
+    .muted { color: #b5b5b5; font-size: 14px; }
+    .wide { width: 620px; background: #eef; padding: 13px; }
+    .btn1 { border-radius: 2px; background: #2563eb; color: #fff; padding: 6px 10px; border: 0; height: 30px; }
+    .btn2 { border-radius: 14px; background: #2463ea; color: #fff; padding: 9px 22px; border: 0; height: 42px; }
+    .btn3 { border-radius: 7px; background: #e11d48; color: #fff; padding: 5px 8px; border: 0; height: 26px; }
+    .btn4 { border-radius: 0; background: #16a34a; color: #fff; padding: 11px 13px; border: 0; height: 36px; }
+    .icon { width: 20px; height: 20px; background: #333; border: 0; }
+    .tiny { font-size: 10px; }
+    p.long { line-height: 1.1; font-size: 13px; }
+    form input { display: block; margin: 7px 0; }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="#">Início</a><a href="#">Produtos</a><a href="#">Ofertas</a><a href="#">Marcas</a>
+    <a href="#">Blog</a><a href="#">Sobre</a><a href="#">Contato</a><a href="#">Ajuda</a>
+    <a href="#">Lojas</a><a href="#">Carreiras</a>
+  </div>
+  <div class="hero">
+    <h2>Bem-vindo à loja</h2>
+    <h4>Ofertas imperdíveis</h4>
+    <p class="muted">Este texto cinza claro tem contraste insuficiente sobre o fundo branco da página.</p>
+    <img src="/photo.svg" width="300" height="120">
+    <button class="icon"></button>
+    <a href="#">Saiba mais</a> <a href="#">Saiba mais</a>
+    <div class="wide">Bloco com largura fixa de 620 pixels que vaza para fora da tela no celular.</div>
+    <button class="btn1">Comprar</button><button class="btn2">Assinar</button>
+    <button class="btn3">Remover</button><button class="btn4">Ver</button>
+    <p class="tiny">Texto minúsculo de rodapé com informações legais importantes aqui.</p>
+    <p class="long">Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur excepteur sint occaecat cupidatat non proident sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+  </div>
+  <form>
+    <input placeholder="Nome"><input placeholder="Sobrenome"><input type="email" placeholder="E-mail">
+    <input placeholder="CPF"><input placeholder="Telefone"><input placeholder="CEP"><input placeholder="Rua">
+    <input placeholder="Número"><input placeholder="Cidade"><input type="password" placeholder="Senha">
+  </form>
+  <!-- Tentativas de SSRF: nenhuma destas pode chegar ao servidor interno -->
+  <img src="http://127.0.0.1:__SECRET_PORT__/pixel.png" alt="">
+  <iframe src="http://169.254.169.254/latest/meta-data/" width="10" height="10"></iframe>
+  <script>
+    fetch('http://127.0.0.1:__SECRET_PORT__/fetch').catch(() => {});
+    fetch('http://localhost:__SECRET_PORT__/fetch-localhost').catch(() => {});
+    try { new WebSocket('ws://127.0.0.1:__SECRET_PORT__/ws'); } catch (e) {}
+    setTimeout(() => { location.href = 'file:///etc/passwd'; }, 50);
+  </script>
+</body>
+</html>
